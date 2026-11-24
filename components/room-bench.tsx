@@ -22,9 +22,14 @@ import {
   type Measurement,
   type RoomDims,
 } from "@/lib/acoustics";
-import { fixFor, loadLocalRooms, saveLocalRoom } from "@/lib/data";
+import { BenchSkeleton, EmptyState } from "@/components/states";
+import { useLocalRooms } from "@/components/use-local-rooms";
+import { fixFor, measurementNote } from "@/lib/data";
 import { IMPULSE_SEED } from "@/lib/config";
 import { getEngine } from "@/lib/engine";
+import { HINTS } from "@/lib/errors";
+import { storedRoomSchema } from "@/lib/schemas";
+import { saveRoom } from "@/lib/store";
 import type { AdapterMode, Room } from "@/lib/types";
 
 /** True when the room carries five finite, positive band decay times. */
@@ -36,7 +41,7 @@ function hasBandData(room: Room): boolean {
   );
 }
 
-/** Detail page body. Seeded rooms arrive from the server; rooms measured here load from localStorage. */
+/** Detail page body. Seeded rooms arrive from the server; rooms measured here come from useLocalRooms(). */
 export function RoomBench({
   slug,
   seedRoom,
@@ -48,38 +53,27 @@ export function RoomBench({
   furnishings: Furnishing[];
   mode: AdapterMode;
 }) {
-  const [room, setRoom] = useState<Room | null>(seedRoom);
-  const [loaded, setLoaded] = useState(Boolean(seedRoom));
+  // The only reader of rooms measured in this browser on this route.
+  const local = useLocalRooms();
+  const room = seedRoom ?? local.rooms.find((r) => r.slug === slug) ?? null;
 
-  useEffect(() => {
-    if (seedRoom) return;
-    setRoom(loadLocalRooms().find((r) => r.slug === slug) ?? null);
-    setLoaded(true);
-  }, [seedRoom, slug]);
-
-  if (!loaded) {
-    return (
-      <Card className="decaya-ruled p-8">
-        <p className="font-display text-xl">Opening this room from your browser...</p>
-      </Card>
-    );
+  // Not a seed slug and the browser store is not read yet (server render, hydration):
+  // show the bench skeleton, never a flash of "not found".
+  if (!seedRoom && !local.ready) {
+    return <BenchSkeleton stamp="Opening your room" line="Reading this room from your browser..." />;
   }
   if (!room) {
     return (
-      <Card className="decaya-ruled p-8">
-        <h1 className="text-3xl font-semibold">This room is not in the fieldbook</h1>
-        <p className="mt-2 max-w-[60ch] text-muted-foreground">
-          Rooms you measure are kept in the browser you measured them in. This one is not here, or the link is wrong.
-        </p>
-        <div className="mt-4 flex gap-3">
-          <Button asChild>
-            <Link href="/new">Measure a room</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/">Browse the fieldbook</Link>
-          </Button>
-        </div>
-      </Card>
+      <EmptyState
+        as="h1"
+        stamp="No specimen"
+        title="This room is not in the fieldbook"
+        body={HINTS.not_found}
+        ctaHref="/new"
+        ctaLabel="Measure a room"
+        secondaryHref="/"
+        secondaryLabel="Browse the fieldbook"
+      />
     );
   }
   if (!hasBandData(room)) {
@@ -102,7 +96,7 @@ export function RoomBench({
       </Card>
     );
   }
-  return <Bench room={room} furnishings={furnishings} mode={mode} />;
+  return <Bench key={room.slug} room={room} furnishings={furnishings} mode={mode} />;
 }
 
 function Bench({ room, furnishings, mode }: { room: Room; furnishings: Furnishing[]; mode: AdapterMode }) {
@@ -121,15 +115,47 @@ function Bench({ room, furnishings, mode }: { room: Room; furnishings: Furnishin
   const vAfter = verdictFor(after);
   const cost = items.reduce((s, i) => s + i.costUsd, 0);
 
+  // Re-measure: a local room gets a pending save; the button is disabled while saving.
+  const [pending, setPending] = useState<Measurement | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   function onMeasured(m: Measurement) {
     setMeasured(m.bands);
     setLiveCurve(m.curveDb.length ? { db: m.curveDb, step: m.curveStepSec } : null);
-    const nextClaps = { valid: m.validCount, total: m.claps.length };
-    setClaps(nextClaps);
+    setClaps({ valid: m.validCount, total: m.claps.length });
     setDr(Math.round(m.dynamicRangeDb));
-    if (room.source === "local") {
-      saveLocalRoom({ ...room, measured: m.bands, claps: nextClaps, dynamicRangeDb: Math.round(m.dynamicRangeDb), dims });
+    setSaveMsg(null);
+    if (room.source === "local") setPending(m);
+  }
+
+  function saveRemeasure() {
+    if (!pending || saving) return;
+    setSaving(true);
+    const next: Room = {
+      ...room,
+      measured: pending.bands,
+      claps: { valid: pending.validCount, total: pending.claps.length },
+      dynamicRangeDb: Math.round(pending.dynamicRangeDb),
+      dims,
+      measuredOn: new Date().toISOString().slice(0, 10),
+      notes: measurementNote(pending),
+    };
+    const checked = storedRoomSchema.safeParse(next);
+    if (!checked.success) {
+      setSaving(false);
+      setSaveMsg({ ok: false, text: `${HINTS.invalid_input} Check the room size: each side between 0.5 and 50 m.` });
+      return;
     }
+    // Same slug as the stored room: saveRoom (lib/store.ts) replaces it in place.
+    const result = saveRoom(checked.data);
+    setSaving(false);
+    if (!result.ok) {
+      setSaveMsg({ ok: false, text: result.hint });
+      return;
+    }
+    setPending(null);
+    setSaveMsg({ ok: true, text: "Saved. The fieldbook shows the new numbers." });
   }
 
   return (
@@ -242,8 +268,23 @@ function Bench({ room, furnishings, mode }: { room: Room; furnishings: Furnishin
           <CardTitle>Measure this room again</CardTitle>
           <CardDescription>Standing in it right now? A new measurement replaces the numbers above.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <ClapCapture mode={mode} onResult={onMeasured} label="Re-measure with claps" />
+          {room.source === "local" ? (
+            <div className="flex flex-wrap items-center gap-4">
+              <Button onClick={saveRemeasure} disabled={!pending || saving}>
+                {saving ? "Saving..." : "Save the new numbers"}
+              </Button>
+              {saveMsg && <p className={saveMsg.ok ? "text-sm text-ok" : "text-sm text-bad"}>{saveMsg.text}</p>}
+              {!pending && !saveMsg && (
+                <p className="text-sm text-muted-foreground">You can save once the room is measured again.</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              This is an example room, so a new measurement updates this page only and is not saved.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>
