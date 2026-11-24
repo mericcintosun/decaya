@@ -133,6 +133,7 @@ export default async function AboutPage() {
             <li>Sabine assumes a diffuse field. Small, cluttered rooms break that, so every prediction is labelled a prediction.</li>
             <li>Some phones keep voice processing on even when asked not to. Decaya detects it and tells you the number is a lower bound.</li>
             <li>The preview has no early reflections. It is a fair comparison between two states of your room, not a recording of it.</li>
+            <li>A deploy in sample mode loads a stored example measurement instead of using the microphone, and the measuring page says so.</li>
           </ul>
         </div>
         <Card className="decaya-ruled flex flex-col justify-between gap-4 p-6">

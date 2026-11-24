@@ -41,6 +41,74 @@ None, the agent cannot run commands; the runner builds.
 ### Next best step
 Phase 2: real clap capture hardening behind the adapter seam (onset thresholds, AudioWorklet raw PCM if MediaRecorder smears tails), the CC0 speech clip at `public/audio/dry-speech.wav` (credited in README), and an `npm run proof` script. Record the live URL here.
 
+## Phase 2 log: the measurement engine goes real (2026-11-24)
+
+### Goal
+Put the in-browser acoustic measurement and playback (the Web Audio pipeline) behind one engine seam, selected by `ADAPTER_MODE` through the adapter, so DEMO step 2 (three claps, "3 of 3 claps valid") and step 5 (`ListenAB`, "Your room now" then "With thick curtain + duvet on the wall") run on the real engine, while `ADAPTER_MODE=fake` keeps a microphone-free demo.
+
+### Status
+All six slices written. Nothing was built or run: the agent cannot run commands, so `npm install` (zod), `npm run build`, `npm test` and `npm run proof` are unverified until the runner and the human run them.
+
+- **Mechanism that went real:** the measurement engine. `realEngine` in `lib/engine.ts` (line 47) records the microphone with `recordClaps` (raw PCM through `public/worklets/pcm-capture.js`, MediaRecorder fallback) and analyzes it with `analyzeRecording` in the browser. `getEngine(mode)` (`lib/engine.ts:107`) is the only switch. `fakeEngine` returns `fixtures/measurement.json`, validated by `measurementSchema`, after 900 ms, and always uses the formant synth voice.
+- **Still on fixtures:** `realAdapter.listRooms`, `realAdapter.getRoom` and `realAdapter.listFurnishings` in `lib/adapter.ts` delegate to the seeded fieldbook, because measured rooms live in the visitor's browser (localStorage) and there is no server store.
+- `.farm-live.json` has an empty `requiredEnv` because the real path is in-browser computation that needs no secret, no API key and no server-side service.
+- Slice 1: `lib/config.ts` (every tunable, no env, header comment), `lib/errors.ts` (`ErrorCode`, `CoreError`, `coreError`, `HINTS`, `isCoreError`, and `CoreFailure` thrown inside `lib/acoustics.ts`), `lib/schemas.ts` (`slugSchema`, `bandValuesSchema`, `roomDimsSchema`, `clapReportSchema`, `measurementSchema`, `storedRoomSchema`, plus compile-time `asMeasurement`/`asRoom` checks), zod in `package.json`, `ApiResponse<T>` failure variant is now `{ ok: false, error, hint }` (`lib/types.ts`), the slug route parses first (`app/api/rooms/[slug]/route.ts:8`) and returns 400 `invalid_input` or 404 `not_found`.
+- Slice 2: engine seam as above. `app/new/page.tsx` and `app/rooms/[slug]/page.tsx` pass `getAdapter().mode` as `mode` to `NewRoomForm`, `ClapCapture` and `RoomBench` (then `ListenAB`). The source line shows after a result: `realEngine.sourceNote` / `fakeEngine.sourceNote`. A room saved in fake mode gets "Sample data" notes, not "Measured in this browser".
+- Slice 3: AudioWorklet capture (`lib/acoustics.ts:390`), with a startup check (no audio after 600 ms means fallback), `processingWarning: true` forced on the MediaRecorder path (`lib/acoustics.ts:510`), tracks stopped and context closed in one `finally` on every exit path, abort on unmount from `ClapCapture`. `analyzeRecording` clamps the noise window at 0 (`lib/acoustics.ts:292`), marks claps with under 0.3 s of tail invalid with "Not enough tail after this clap." (`lib/acoustics.ts:315`), and takes the 1 kHz curve from the first valid clap. `ClapCapture` switches on `err.error` for the title and shows `err.hint` plus a "Try again" button. The quality report names the capture path.
+- Slice 4: `loadDryVoice` (`lib/acoustics.ts:655`) uses `AbortController` with `FETCH_TIMEOUT_MS`, a `for` loop of exactly `1 + FETCH_RETRIES` attempts, no retry after a 404 or a decode failure, and falls through to the synth without throwing. `ListenAB` builds both impulse responses together (same function, same `IMPULSE_SEED`, same loudness match) before either plays, caches them per band pair, and fades the previous side (and its reverb tail) out in 30 ms before the other starts. The voice label and the relative-preview note sit under the buttons (`components/room-bench.tsx:382` and `:385`).
+- Slice 5: `tests/core.test.ts` (5 tests), `scripts/proof-core.ts`, `scripts/proof.mjs`, `test` and `proof` scripts, four PROOF marker pairs in README under "How it was tested", `.farm-live.json`.
+- Slice 6: README (real vs fixture section, AudioWorklet, zod, test commands, honest dry voice credit, AI use), one sentence on `/about`, DEMO data path paragraph, this log.
+
+### Decisions
+- Asymmetry found and fixed in `ListenAB`: each tap used to build only its own impulse after the click (a build gap on every switch), and stopping a source did not silence the convolver tail, so A and B could overlap. Now both are built first and the old side fades out.
+- `AdapterMode` moved to `lib/types.ts` (re-exported from `lib/adapter.ts`) so client files import a type, never the adapter.
+- `CoreFailure` (an `Error` subclass with a `code`) is thrown inside `lib/acoustics.ts`; `toCoreError` in `lib/engine.ts` turns it, or a `DOMException` (`NotAllowedError`/`SecurityError` mean `mic_denied`, any other means `mic_unavailable`), into a plain `CoreError`. UI code never reads message text.
+- `SPEECH_TARGET` stays in `lib/acoustics.ts`; `lib/config.ts` points at it in a comment instead of importing it (avoids a circular import).
+- `Measurement` gained an optional `capturePath` ("worklet", "mediarecorder", "fixture") so the builder can see on a phone which path ran.
+- `fixtures/measurement.json` uses a 0.02 s curve step (44 points) so it stays readable; mid band 0.905 s.
+- The README room test table now says "Not measured yet" per row instead of "(to fill)".
+
+### Failed attempts
+None.
+
+### Files changed
+lib/config.ts (new), lib/errors.ts (new), lib/schemas.ts (new), lib/engine.ts (new), fixtures/measurement.json (new), public/worklets/pcm-capture.js (new), tests/core.test.ts (new), scripts/proof.mjs (new), scripts/proof-core.ts (new), .farm-live.json (new), lib/acoustics.ts, lib/adapter.ts, lib/types.ts, app/api/rooms/[slug]/route.ts, app/new/page.tsx, app/rooms/[slug]/page.tsx, app/about/page.tsx, components/clap-capture.tsx, components/new-room-form.tsx, components/room-bench.tsx, package.json, .env.example, README.md, DEMO.md, HANDOFF.md, .farm-commits.json (runner only, not committed).
+
+### Commands run
+None. The agent cannot run commands; the runner installs, builds and commits.
+
+### Acceptance gate, checked by reading files
+- Met: one `MeasureEngine` interface with `fakeEngine` and `realEngine`, `getEngine` the only switch; `lib/adapter.ts:46` is the only `ADAPTER_MODE` reader, default fake.
+- Met: no file in `app/` or `components/` imports `realAdapter` or `realEngine` (grep); `mode` arrives as a prop from server pages.
+- Met: `.farm-live.json` has both arrays; the empty `requiredEnv` is explained above.
+- Met: `lib/config.ts` holds the listed constants and reads no env; a grep of `lib/acoustics.ts` for the old inline thresholds (0.985, 25, 6, 90 frames, 0.2, 1.414, 2.2, 0.8, the clip URL) finds nothing.
+- Met: `ErrorCode` and `CoreError` exported; `ClapCapture` switches on `err.error`; the slug route parses first and returns `{ ok: false, error, hint }`.
+- Met: schemas exported from `lib/schemas.ts`; zod declared; no `NEXT_PUBLIC_` secret.
+- Met: `loadDryVoice` loop is bounded by `1 + FETCH_RETRIES`.
+- Met: core-path logs start with `LOG_PREFIX` and print counts, durations and codes only.
+- Met: `test` and `proof` scripts, the three files, four BEGIN/END pairs; the failure path writes "Not run in this build: ..." and `process.exit(0)`.
+- Met: zero hits for `<PASTE`, `<fill in`, `Paste the`, `placeholder until`, `TBD` in README.md, DEMO.md, HANDOFF.md (no `docs/` folder exists).
+- Met: the UI says "Live measurement" or "Sample data" from `engine.sourceNote`, driven by `mode`.
+- Met by reading, unverified by running: the fake path renders `/new` and the bench, seed stays at 10 rooms, and `ListenAB` has no real-only branch besides `engine.dryVoice`.
+- Met: imports in touched files resolve to repo files, `zod`, `lucide-react` (`RotateCcw` is new) or Node built-ins.
+- Met: the sameness tripwire grep on `app/`, `components/`, `lib/` finds zero hits; no new chrome, stat strips, steppers or badges; the header was not touched.
+
+### Open questions
+- Unverified until the runner runs it: `npm install` resolving `zod ^3.25.76`, `npm run build` type-checking the new `tests/` and `scripts/` files (they are inside the tsconfig `include`), `npm test`, `npm run proof`.
+- Unverified on devices: whether Safari iOS and Chrome Android run the AudioWorklet path or fall back. The quality report prints "Capture: raw PCM (AudioWorklet)" or "compressed recording (MediaRecorder fallback)".
+- If the build objects to the JSON import in `lib/engine.ts`, `tests/core.test.ts` or `scripts/proof-core.ts`, `resolveJsonModule` is already on in `tsconfig.json`; check the error before changing the import.
+- Live URL still to record here after the runner sets `ADAPTER_MODE=real` on Vercel production.
+
+### Manual checklist for the builder
+- (a) Drop a CC0 anechoic speech clip at `public/audio/dry-speech.wav` and add its credit line to README "Credits" (replace the formant synth line).
+- (b) Test `/new` on iOS Safari and Android Chrome over the HTTPS URL, and note from the quality report whether the AudioWorklet path or the fallback ran.
+- (c) Measure a dorm room and a bathroom, cross-check 3 rooms against an iOS clap app, then add the real numbers to the README room test table by hand.
+- (d) Fill in team roles and the eligibility (students only) confirmation in README.
+- (e) Rehearse the wow step (DEMO step 5) twice on the recording device.
+
+### Next best step
+Phase 3: run the manual checklist items (b) and (c) on the deployed URL, tune the onset thresholds and the impulse constants in `lib/config.ts` from those results, and fill the README test table with real numbers.
+
 ---
 
 You are picking up a working Next.js 15 scaffold. Read this file, then `IDENTITY.md`, then start on the Mission list. Keep `npm run build` passing after every change.
