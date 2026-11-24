@@ -3,6 +3,8 @@
 Clap once in your room. Decaya measures how long the echo rings, works out which rug, curtain or duvet would fix it, and plays you the result before you buy anything.
 
 > Live demo: https://decaya.vercel.app
+>
+> Source: https://github.com/mericcintosun/decaya
 
 Decaya is a browser tool for students who record in rooms that ring. You clap three times, Decaya measures the decay per octave band, predicts what a curtain, a duvet or a rug would change with Sabine's equation, and plays the same sentence through your room as it is and as it would be. The fieldbook on the home page holds ten illustrative example rooms (not measurements we took) next to any room you measure yourself, which stays in your own browser.
 
@@ -45,6 +47,8 @@ This hackathon has no sponsor technology. The core is the Web Audio API:
 - `OfflineAudioContext` + `BiquadFilterNode` for the octave filter bank and impulse synthesis
 - `ConvolverNode` for the before/after preview
 - Canvas 2D for the decay curve
+
+Bounties: No sponsor bounties in this hackathon; one submission enters 1st to 5th Place automatically. See `DELIVERY.md`.
 
 ## Tech stack
 
