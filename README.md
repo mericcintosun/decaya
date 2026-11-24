@@ -30,7 +30,8 @@ Fixtures and stand-ins:
 - The ten fieldbook rooms in `lib/data/seed.ts` are illustrative examples, not measurements we took.
 - With `ADAPTER_MODE=fake` (the default), the clap button loads `fixtures/measurement.json`, a stored example dorm-room measurement, and the UI says "Sample data". With `ADAPTER_MODE=real` it uses your microphone and says "Live measurement". The switch is `getEngine(mode)` in `lib/engine.ts`.
 - The dry voice in the A/B player is a formant synth until a CC0 anechoic speech clip is added at `public/audio/dry-speech.wav`. The player names the source it actually used.
-- Rooms you measure are kept in your browser's localStorage; the server has no room store.
+- Rooms you measure are kept in your browser's localStorage through `lib/store.ts`; the server has no room store.
+- If the microphone is blocked or no clap is found, "Use the sample measurement" loads the stored example instead; a room saved from it says "Sample data" in its notes.
 
 What the model says, run over the too-live rooms in the seeded fieldbook: a free duvet hung off the wall cuts mid-band echo roughly three times more than a 12-pack of foam squares. Foam absorbs better per square meter, but twelve squares only cover about one square meter. Area wins.
 
@@ -66,22 +67,30 @@ npm run dev
 Open http://localhost:3000. The microphone needs a secure context: `localhost` works, and so does any HTTPS deploy. No secret is needed. `ADAPTER_MODE` is the only setting (see `.env.example`): leave it unset for sample data, or set `ADAPTER_MODE=real` to measure with your microphone.
 
 ```bash
-npm test        # unit tests on the pure acoustics functions and the schemas
+npm test        # unit tests on the pure acoustics functions, the schemas and the room store
 npm run proof   # runs the core proofs and the tests, then rewrites the blocks below
 ```
 
 Optional: drop a CC0 dry (anechoic) speech clip at `public/audio/dry-speech.wav` and the real engine uses it instead of the built-in formant synth.
 
+### Reset the demo
+
+1. `npm run demo:reset` rebuilds `fixtures/seed.json` twice in memory, stops if the two builds differ, writes it, and checks the fieldbook still has 10 rooms and 6 furnishings.
+2. In the browser, open `/` and press "Clear rooms measured here" (or open a private window). Rooms you measured live only in that browser, so no script can reach them.
+3. Walk `DEMO.md` from step 1.
+
+No migration or schema push exists in this project (store: browser localStorage, `lib/store.ts`). Rooms are saved under the key `decaya.rooms.v1`; entries that fail the stored room schema are skipped when read, and saving the same room twice replaces it instead of adding a second one.
+
 ## How it was tested
 
 The design choice we made up front: we fit T20 (-5 to -25 dB) instead of T30, because phone microphones rarely give 35 clean decibels above the noise floor.
 
-The four blocks below are written by `npm run proof`. They are synthetic-signal checks, a model prediction and a unit test result, not room measurements.
+The five blocks below are written by `npm run proof`. They are synthetic-signal checks, a model prediction, a storage check and a unit test result, not room measurements.
 
-Unit tests (`tests/core.test.ts`):
+Unit tests (`tests/core.test.ts`, `tests/store.test.ts`):
 
 <!-- PROOF:BEGIN tests -->
-Run 2026-11-24: npm test passed 5 of 5 tests in tests/core.test.ts (node:test through tsx).
+Run 2026-11-24: npm test passed 11 of 11 tests in tests/core.test.ts and tests/store.test.ts (node:test through tsx).
 <!-- PROOF:END tests -->
 
 T20 on a synthetic decay:
@@ -101,6 +110,12 @@ Dry voice source:
 <!-- PROOF:BEGIN dry-voice -->
 Run 2026-11-24: public/audio/dry-speech.wav is not present, so the A/B uses the formant synth voice.
 <!-- PROOF:END dry-voice -->
+
+Saved rooms (`lib/store.ts`, in-memory localStorage stand-in):
+
+<!-- PROOF:BEGIN store -->
+Run 2026-11-24: lib/store.ts with an in-memory localStorage. Saving the same slug twice left 1 room. A corrupt stored string did not throw and reported parse_failure. Of two stored entries, the one missing its band values was skipped (kept 1, skipped 1).
+<!-- PROOF:END store -->
 
 Room tests on real devices. We add these numbers by hand after measuring; no row is filled until it has been measured.
 

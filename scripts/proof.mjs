@@ -35,6 +35,7 @@ try {
     lines["synthetic-decay"] = msg;
     lines["demo-prediction"] = msg;
     lines["dry-voice"] = msg;
+    lines.store = msg;
   } else {
     const res = run("npx", ["--no-install", "tsx", "scripts/proof-core.ts"], 45_000);
     const out = (res.stdout ?? "").trim().split("\n").filter(Boolean).pop() ?? "";
@@ -51,7 +52,14 @@ try {
       lines["synthetic-decay"] = msg;
       lines["demo-prediction"] = msg;
       lines["dry-voice"] = msg;
+      lines.store = msg;
     } else {
+      const st = data.store;
+      lines.store = st
+        ? `Run ${today}: lib/store.ts with an in-memory localStorage. Saving the same slug twice left ${st.roomsAfterDoubleSave} room. ` +
+          `A corrupt stored string ${st.corruptThrew ? "threw" : "did not throw"} and reported ${st.corruptFailed ?? "no failure"}. ` +
+          `Of two stored entries, the one missing its band values was skipped (kept ${st.missingMeasuredKept}, skipped ${st.missingMeasuredSkipped}).`
+        : "Not run in this build: scripts/proof-core.ts returned no store result.";
       const s = data.syntheticDecay;
       lines["synthetic-decay"] =
         s.t20 === null
@@ -72,6 +80,7 @@ try {
   lines["synthetic-decay"] = lines["synthetic-decay"] ?? msg;
   lines["demo-prediction"] = lines["demo-prediction"] ?? msg;
   lines["dry-voice"] = lines["dry-voice"] ?? msg;
+  lines.store = lines.store ?? msg;
   console.log(`proof: core not run (${e && e.message ? e.message : "unknown"})`);
 }
 
@@ -92,9 +101,9 @@ try {
     if (total === null || pass === null) {
       lines.tests = `Not run in this build: npm test did not report a result, ${why(res)}.`;
     } else if (res.status === 0 && (fail ?? 0) === 0) {
-      lines.tests = `Run ${today}: npm test passed ${pass} of ${total} tests in tests/core.test.ts (node:test through tsx).`;
+      lines.tests = `Run ${today}: npm test passed ${pass} of ${total} tests in tests/core.test.ts and tests/store.test.ts (node:test through tsx).`;
     } else {
-      lines.tests = `Run ${today}: npm test failed, ${fail ?? total - pass} of ${total} tests in tests/core.test.ts did not pass.`;
+      lines.tests = `Run ${today}: npm test failed, ${fail ?? total - pass} of ${total} tests in tests/core.test.ts and tests/store.test.ts did not pass.`;
     }
   }
   console.log(`proof: tests ${lines.tests.startsWith("Not run") ? "not run" : "done"}`);

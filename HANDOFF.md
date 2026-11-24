@@ -109,6 +109,102 @@ None. The agent cannot run commands; the runner installs, builds and commits.
 ### Next best step
 Phase 3: run the manual checklist items (b) and (c) on the deployed URL, tune the onset thresholds and the impulse constants in `lib/config.ts` from those results, and fill the README test table with real numbers.
 
+## Phase 3 log: demo path end to end, persistence and state guards (2026-11-24)
+
+### Goal
+Make DEMO.md steps 2, 3 and 6 safe to repeat three times in a row: clap (or fall back to the sample), save once, land on `/rooms/[slug]` with no flash of "not found", see the room at the top of `/`. Every route on the path has a loading, error and empty branch; a double click cannot create two rooms; `demo:reset` plus "Clear rooms measured here" returns to the same start state. `ListenAB`, `synthesizeImpulse`, `analyzeRecording` thresholds and `public/worklets/pcm-capture.js` were not touched.
+
+### Status
+All five slices written. Nothing was built or run: the agent cannot run commands, so `npm run build`, `npm test`, `npm run proof` and `npm run demo:reset` are unverified until the runner runs them. No cut from the cut protocol was needed.
+
+### Decisions
+
+**Persistence.** The demo mutates exactly one thing: the rooms a visitor measures. They are per visitor, private and small; no step needs another device to see them; the builder cannot provide a KV or database credential.
+
+| Row | Verdict |
+| --- | --- |
+| Seed constants, in memory per request (`lib/data/seed.ts`) | Used for the illustrative fieldbook. Stays. |
+| One JSON blob in a KV store | Rejected: needs a secret the builder cannot supply, adds a network hop to step 2, no step needs cross-device rooms. |
+| Postgres | Rejected: nothing in DEMO.md filters or joins relational data. |
+| On-chain state | Not applicable. |
+
+Chosen: browser localStorage (key `decaya.rooms.v1`) behind one module, `lib/store.ts` (`readRooms` line 69, `saveRoom` line 93, `clearRooms` line 118, `subscribeRooms` line 128). It is the only file that touches localStorage (grep over `app/`, `components/`, `lib/` finds only comments elsewhere). It works on Vercel because it runs in the visitor's browser and writes no server file. The old `loadLocalRooms` / `saveLocalRoom` and the stale Vercel KV TODO were removed from `lib/data.ts`; every importer moved to the store.
+
+- `saveRoom` validates with `storedRoomSchema` (returns `invalid_input`), then upserts by slug: an existing slug is replaced in place, a new slug goes first (so `/` lists it first). Quota or blocked storage returns `{ ok: false, error: "not_configured", hint: "This browser would not keep the room..." }`. No `ErrorCode` or `HINTS` entry was added.
+- `readRooms` caches its result per raw string (the same object comes back while the stored string is unchanged), returns a constant on blocked storage, and never throws. A corrupt stored value is overwritten by the next save.
+- `useLocalRooms()` (`components/use-local-rooms.ts`) is `useSyncExternalStore` with a module-level server snapshot `{ rooms: [], ready: false }`. `RoomExplorer` and `RoomBench` read browser rooms only through it; no effect reads rooms. DEMO.md step 6 reads rooms through `useLocalRooms()`.
+- The saved room's note comes from `measurementNote(m)` in `lib/data.ts` (line 52), which reads `m.capturePath === "fixture"` (the value in `fixtures/measurement.json` line 41). `components/new-room-form.tsx` and the bench re-measure both use it, so a sample used as a fallback in real mode is saved as "Sample data".
+- The bench re-measure no longer saves silently: a local room gets a "Save the new numbers" button (`components/room-bench.tsx:275`, `disabled={!pending || saving}`). An example room says the new measurement updates the page only.
+- `realAdapter` now reads a validated real source (seed rooms checked against `storedRoomSchema`, slug checked against `slugSchema`) through `withFallback` (`lib/adapter.ts:79`, `:81`, `:83`). There is still no server store; the real server data is the fieldbook.
+- `components/scene-slot.tsx` now renders through `next/image`, with `unoptimized` for SVG sources (the optimizer does not resize vectors) and `priority` for scene 1.
+- `scripts/seed.ts` logic moved to `scripts/seed-data.ts` (`buildSeedJson`), output unchanged byte for byte (same payload, same `sortKeys`, same trailing newline).
+- Wallet state machine: not applicable. `package.json` has no web3 dependency (no wagmi, no Stellar SDK, no Anchor), and the repo has no `contracts/`.
+
+**Per-step map (real path and fallback)**
+
+| Step | Real path | Fallback |
+| --- | --- | --- |
+| 1. `/` | `getAdapter().listRooms()` in `app/page.tsx` | `fakeAdapter` through `withFallback` in `lib/adapter.ts` |
+| 2. `/new` | `realEngine.capture` in `lib/engine.ts` | `fakeEngine`, reachable by the user: "Use the sample measurement" in `components/clap-capture.tsx:143` on `mic_denied`, `mic_unavailable` or `no_clap`, stamped "Sample data" |
+| 3. `/rooms/[slug]` | `lib/acoustics.ts` pure computation; local rooms via `useLocalRooms()` | seed room via `adapter.getRoom` (`withFallback`); `BenchSkeleton` until the store is read |
+| 4. simulator | `predictRt60` in `lib/acoustics.ts`, no network | not needed (pure function) |
+| 5. `ListenAB` | `engine.dryVoice` | `synthesizeDryVoice` inside `loadDryVoice` (Phase 2, unchanged) |
+| 6. `/` | `useLocalRooms()` plus `adapter.listRooms()` | seeded fieldbook plus the "could not be read" stamp when storage fails |
+
+**State triad map**
+
+| Route | Loading | Error | Empty |
+| --- | --- | --- | --- |
+| `/` | `app/loading.tsx` renders `SpecimenSkeleton` | `app/error.tsx` renders `ErrorState` with `reset` | `components/room-explorer.tsx` renders `EmptyState` ("No specimen", CTA "Add a room" to `/new`); `failed` stamp with "Clear saved rooms" |
+| `/new` | `app/new/loading.tsx` renders `FormSkeleton` | `app/new/error.tsx` renders `ErrorState` with `reset`; `ClapCapture` error branch keeps "Try again" | `components/new-room-form.tsx` renders `EmptyState` ("No reading yet", "Clap three times to fill this in.") until a measurement exists |
+| `/rooms/[slug]` | `app/rooms/[slug]/loading.tsx` renders `BenchSkeleton`; `RoomBench` renders `BenchSkeleton` while `useLocalRooms().ready` is false for a non-seed slug | `app/rooms/[slug]/error.tsx` renders `ErrorState` with `reset` | `RoomBench` renders `EmptyState` with `HINTS.not_found` and CTA "Measure a room" |
+
+All five components live in `components/states.tsx` (`SpecimenSkeleton`, `BenchSkeleton`, `FormSkeleton`, `ErrorState`, `EmptyState`). Skeletons are static ruled blocks; `ErrorState` enters with `decaya-drop-in` only.
+
+**Write guards**
+- Slug: `${slugify(name) || "room"}-${draftId}` (`components/new-room-form.tsx:58`). `draftId` is a `useRef` set once per measurement in `onResult` (`crypto.randomUUID`, counter fallback). A double click or retry builds the same slug.
+- `saving` state: `disabled={!m || saving}` (`components/new-room-form.tsx:198`), label "Saving...", `setSaving(false)` on a failed result; on success it stays true while the router leaves.
+- `storedRoomSchema.safeParse` runs before every `saveRoom` (`components/new-room-form.tsx:73`, `components/room-bench.tsx:144`), and `saveRoom` checks again (`lib/store.ts:94`). Failures show the `invalid_input` hint. Name, owner and city are trimmed and capped at 120, 80 and 80 (`FIELD_LIMITS` in `lib/data.ts`, plus `maxLength` on the inputs).
+- No API route was added.
+
+**Performance notes.** No step waits on the network for rooms: data enters each route from a server component (`getAdapter()`) plus the single `useLocalRooms()` hook, which reads localStorage synchronously. The only step over 5 s is the 7 s capture window step 2 is built around; analysis is expected within 2 s of it (Phase 2 logs the duration with `LOG_PREFIX`). Not timed on a device by this agent.
+
+### Failed attempts
+None.
+
+### Files changed
+lib/store.ts (new), components/use-local-rooms.ts (new), components/states.tsx (new), app/rooms/[slug]/error.tsx (new), app/new/error.tsx (new), scripts/seed-data.ts (new), scripts/demo-reset.ts (new), tests/store.test.ts (new), tests/memory-storage.ts (new), lib/data.ts, lib/adapter.ts, components/room-explorer.tsx, components/room-bench.tsx, components/new-room-form.tsx, components/clap-capture.tsx, components/scene-slot.tsx, app/loading.tsx, app/rooms/[slug]/loading.tsx, app/new/loading.tsx, app/error.tsx, scripts/seed.ts, scripts/proof-core.ts, scripts/proof.mjs, package.json, README.md, .env.example, DEMO.md, HANDOFF.md, .farm-commits.json (runner only, not committed).
+
+### Commands run
+None. The agent cannot run commands; the runner installs, builds, tests and commits.
+
+### Acceptance gate, checked by reading files
+- Met: every step has a real path and a fallback (table above); `withFallback` wraps all three real methods (`lib/adapter.ts:79-83`).
+- Met: `lib/store.ts` is the only file that touches localStorage; KV, Postgres and on-chain rows recorded as rejected.
+- Met: no `fs` import in `app/`, `components/`, `lib/` (grep); `fs` writes are in `scripts/seed.ts`, `scripts/demo-reset.ts` and `scripts/proof.mjs` only (`next.config.ts` reads `public/brand` at build time, as before).
+- Met: no secret; `.env.example` line 4 says the store needs no secret and no `NEXT_PUBLIC_` key; `.farm-live.json` unchanged.
+- Met by reading: `demo:reset` in `package.json` compares two serializations (`scripts/demo-reset.ts`) and checks 10 rooms and 6 furnishings.
+- Met: the triad exists on `/`, `/new`, `/rooms/[slug]` (table above); every `ErrorState` has `onRetry` bound to `reset`.
+- Met: `saving` in the `disabled` expression; `saveRoom` upserts by slug; slug from `draftId`; no `Date.now` in `components/new-room-form.tsx`.
+- Met: no effect in `room-explorer.tsx` or `room-bench.tsx` reads rooms (the remaining effects are Escape key, URL sync, audio cleanup, canvas resize and draw).
+- Met: `components/scene-slot.tsx:1` imports `next/image`.
+- Met: README "Reset the demo" holds the migration note.
+- Met: no new dependency; new imports resolve to repo files, `react`, `next/image`, `next/link`, `lucide-react`, `zod` or Node built-ins.
+- Met: `tests/store.test.ts` has 6 tests; `tests/core.test.ts` is unchanged.
+- Met: tripwire greps on `app/`, `components/`, `lib/` find hexes only in `app/globals.css`, `app/icon.svg` and `app/opengraph-image.tsx` (Never list, unchanged); no banned keyframe or prop; no em dash, en dash or ` -- ` in the repo; `app/layout.tsx` not touched (one `BrandMark`).
+
+### Open questions
+- Unverified until the runner runs it: `npm run build` (including type checks of `tests/` and `scripts/`), `npm test` (11 tests expected), `npm run proof` (the README `store` block holds an honest "Not run" line until then), `npm run demo:reset`.
+- `fixtures/seed.json` is still not in the repo (Glob of `fixtures/` finds only `measurement.json`); `npm run seed` or `npm run demo:reset` creates it, then commit it.
+- If Node's own experimental `globalThis.localStorage` interferes with the test stub, `installStorage` in `tests/memory-storage.ts` uses `Object.defineProperty` to replace it; check the first test run.
+- If `useSyncExternalStore` causes a hydration or loop error, the cut protocol fallback is a single `useEffect` inside `useLocalRooms()`; not needed by reading, unverified by running.
+- `next/image` with `unoptimized` SVG sources: confirm on the deploy that the `/rooms/[slug]` scene and the bento scene render.
+- Human checks still open: three DEMO.md cycles on the live URL in a private window; block the mic once and save via "Use the sample measurement" (notes must say "Sample data"); double-click "Save to the fieldbook" and confirm one room.
+- In real mode, opening a local room logs `[core] adapter getRoom: not_found, using fallback` on the server once per visit (code only, no payload). Harmless, but noisy in logs.
+
+### Next best step
+Phase 4: landing and submission polish, and the README test table with real numbers from the manual checklist (items b and c above).
+
 ---
 
 You are picking up a working Next.js 15 scaffold. Read this file, then `IDENTITY.md`, then start on the Mission list. Keep `npm run build` passing after every change.
@@ -155,7 +251,7 @@ Navigation: header links Rooms (`/`), Measure a room (`/new`), Method (`/about`)
 ### File map
 
 - `lib/acoustics.ts`: all the science. `predictRt60` (Sabine inverse plus forward), `bestFix` (cheapest subset that lands 0.3 to 0.5 s), `schroederDb` + `t20`, `analyzeRecording` (onset detection, octave filtering in OfflineAudioContext, noise subtraction, clap grading), `recordClaps` (getUserMedia + MediaRecorder + live AnalyserNode level), `synthesizeImpulse` (seeded per-band decaying noise, loudness matched), `loadDryVoice` (dry source adapter).
-- `lib/types.ts`: shared types and `ApiResponse<T>`. `lib/data/seed.ts`: 10 seeded rooms and 6 furnishings. `lib/adapter.ts`: `getAdapter()` seam. `lib/data.ts`: shim plus `averageCut`, `fixFor`, `ROOM_TYPES`, `ROOM_USES` and the localStorage helpers `loadLocalRooms` / `saveLocalRoom`.
+- `lib/types.ts`: shared types and `ApiResponse<T>`. `lib/data/seed.ts`: 10 seeded rooms and 6 furnishings. `lib/adapter.ts`: `getAdapter()` seam. `lib/data.ts`: shim plus `averageCut`, `fixFor`, `ROOM_TYPES`, `ROOM_USES`, `measurementNote`. `lib/store.ts`: the only localStorage wrapper (`readRooms`, `saveRoom`, `clearRooms`, `subscribeRooms`), read in components through `useLocalRooms()`.
 - `components/home-bento.tsx`: the six-cell bento (claim + live product, image, CTA, quality stamp, speech window, duvet vs foam finding).
 - `components/room-explorer.tsx`: fieldbook list, URL-synced filters, the shared-layout Quick look.
 - `components/room-bench.tsx`: detail body, `ListenAB`, `DecayCurve` (canvas).
@@ -170,8 +266,8 @@ Real: clap capture, onset detection, octave filter bank, Schroeder integration, 
 
 Mocked or stand-in:
 - `loadDryVoice` in `lib/acoustics.ts`: uses a formant-synth phrase until a CC0 anechoic speech file is placed at `public/audio/dry-speech.wav` (then it is picked up automatically; the UI names the source).
-- `loadLocalRooms` / `saveLocalRoom` in `lib/data.ts`: localStorage only, so measured rooms live on one device.
-- `realAdapter` in `lib/adapter.ts` delegates to the fake adapter.
+- `lib/store.ts`: localStorage only, so measured rooms live on one device (decision in the Phase 3 log).
+- `realAdapter` in `lib/adapter.ts` serves the validated seed fieldbook through `withFallback`; there is no server store.
 - Seed rooms in `lib/data/seed.ts` are plausible illustrative data, not measurements. Replace or add real measurements from the team's own rooms before submitting and say so in the README.
 
 ### Interaction kit (K1 motion)
