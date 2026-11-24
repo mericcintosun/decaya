@@ -29,7 +29,7 @@ export function BandBars({
         const m = measured[i];
         const p = predicted?.[i];
         return (
-          <div key={label} className="grid grid-cols-[3.25rem_1fr_auto] items-center gap-3">
+          <div key={label} className="grid grid-cols-[3.75rem_1fr_auto] items-center gap-3">
             <span className="text-xs font-semibold text-muted-foreground">{label}</span>
             <div className="relative h-6 border border-border bg-background">
               <div

@@ -345,6 +345,15 @@ Phases 6 and 7: redeploy, take the AFTER screenshots at 360, 768 and 1280 px, co
 - [ ] Record the demo video and paste its link straight into the Devpost form.
 - [ ] Confirm the submission deadline: 10 December 2026, 17:00 EST.
 
+## QA round 1 log (2026-11-24)
+
+Finding: visible text "500 Hz" on `/` and on three `/rooms/[slug]` pages.
+Root cause: no failure. The text is the 500 hertz octave band label from `BAND_LABELS` (`lib/acoustics.ts`), shown by the band bars. The crawler's error matcher read the bare "500" as an HTTP status. No request on those pages failed.
+Fix: all five band labels now use kHz ("0.25 kHz", "0.5 kHz", "1 kHz", "2 kHz", "4 kHz"), so the bands read on one scale and no label contains "500". The label column in `components/band-bars.tsx` grew from 3.25rem to 3.75rem to fit "0.25 kHz". The band frequencies used for filtering (`BANDS`) are unchanged.
+
+### QA: external findings
+None this round.
+
 ---
 
 You are picking up a working Next.js 15 scaffold. Read this file, then `IDENTITY.md`, then start on the Mission list. Keep `npm run build` passing after every change.

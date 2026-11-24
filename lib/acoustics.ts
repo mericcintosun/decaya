@@ -37,7 +37,11 @@ import {
 import { CoreFailure } from "./errors";
 
 export const BANDS = [250, 500, 1000, 2000, 4000] as const;
-export const BAND_LABELS = ["250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz"] as const;
+/**
+ * Display labels, all in kHz so the five bands read on one scale
+ * (and a bare "500" is never mistaken for an HTTP status by readers or crawlers).
+ */
+export const BAND_LABELS = ["0.25 kHz", "0.5 kHz", "1 kHz", "2 kHz", "4 kHz"] as const;
 export type BandValues = [number, number, number, number, number];
 
 /** Decay time range where spoken voice stays clear in a small room. */
