@@ -8,7 +8,7 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const NAV = [
+const BASE_NAV = [
   { href: "/", label: "Rooms" },
   { href: "/new", label: "Measure a room" },
   { href: "/about", label: "Method" },
@@ -16,9 +16,10 @@ const NAV = [
 
 const PANEL_ID = "main-menu-panel";
 
-/** Room detail pages belong to the Rooms collection. */
+/** The bench link is active on any room page; Rooms only on the collection. */
 function isActive(href: string, pathname: string): boolean {
-  return href === "/" ? pathname === "/" || pathname.startsWith("/rooms/") : pathname.startsWith(href);
+  if (href.startsWith("/rooms/")) return pathname.startsWith("/rooms/");
+  return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
 /**
@@ -26,8 +27,12 @@ function isActive(href: string, pathname: string): boolean {
  * full-width panel with the same three links. The active route gets
  * aria-current="page" and an ink underline on a DEEP fill in both places.
  */
-export function NavLinks() {
+export function NavLinks({ benchHref }: { benchHref?: string }) {
   const pathname = usePathname() ?? "/";
+  // The four S5 routes: collection, detail (an example bench), create, method.
+  const NAV = benchHref
+    ? [BASE_NAV[0], { href: benchHref, label: "Example bench" }, BASE_NAV[1], BASE_NAV[2]]
+    : BASE_NAV;
   const [open, setOpen] = useState(false);
 
   // The panel closes on navigation.

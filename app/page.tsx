@@ -35,28 +35,18 @@ export default async function Home({ searchParams }: { searchParams: SearchParam
  */
 function Landing() {
   return (
-    <section aria-labelledby="landing-heading" className="mt-14 grid gap-6 border-t border-foreground pt-8 lg:grid-cols-12">
+    <section aria-labelledby="landing-heading" className="mt-14 grid gap-4 border-t border-foreground pt-8 lg:grid-cols-12 lg:items-baseline">
       <h2 id="landing-heading" className="text-3xl font-semibold leading-tight lg:col-span-4">
-        What Decaya does, and for whom
+        It is the room, not the mic
       </h2>
       <div className="space-y-4 lg:col-span-8">
-        <p className="max-w-[68ch] leading-7">
-          Decaya measures how long your room rings from three claps, predicts what a rug, a thick curtain or a duvet on the
-          wall would change, and plays the same sentence before and after so you can hear the difference. It all runs in your
-          browser tab. Every number after you add an item is a prediction, and the rooms in the fieldbook below are
-          illustrative examples, not measurements we took.
+        <p className="max-w-[65ch] leading-7">
+          For students who record in a dorm and are about to buy a new microphone. Seed rooms are illustrative examples, not
+          measurements we took.
         </p>
-        <p className="max-w-[68ch] leading-7 text-muted-foreground">
-          It is for students who record podcasts, covers or voice homework in a dorm room and are about to buy a new
-          microphone. Most of the time the microphone is fine and the room is the problem, and an old duvet may fix it for
-          free.
-        </p>
-        <div className="flex flex-wrap gap-3 pt-2">
-          <Button asChild size="lg">
-            <Link href="/new">Start with three claps</Link>
-          </Button>
-          <Button asChild size="lg" variant="outline">
-            <Link href="/about">See the 90-second path</Link>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild variant="outline">
+            <Link href="/about">How the measurement works</Link>
           </Button>
         </div>
       </div>

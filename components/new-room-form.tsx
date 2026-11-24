@@ -171,10 +171,7 @@ export function NewRoomForm({ mode }: { mode: AdapterMode }) {
         <Card>
           <CardHeader>
             <CardTitle>2. Clap three times</CardTitle>
-            <CardDescription>
-              Phone or laptop on a table, you in the middle of the room, no music playing. The browser asks for the microphone
-              once.
-            </CardDescription>
+            <CardDescription>Phone on a table, you in the middle of the room, no music.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <ClapCapture mode={mode} onResult={onResult} />
@@ -187,7 +184,7 @@ export function NewRoomForm({ mode }: { mode: AdapterMode }) {
               <EmptyState
                 stamp="No reading yet"
                 title="Clap three times to fill this in."
-                body="The mid-band decay and the five band bars appear here once the claps are analyzed. Press the button above and clap three times, or use the sample measurement if the microphone is blocked. Nothing is saved until you press save."
+                body="The mid-band decay and the five band bars appear here. Nothing is saved until you press save."
                 ctaHref="/about"
                 ctaLabel="How the measurement works"
               />

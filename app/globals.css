@@ -119,6 +119,14 @@ h1,
 h2 {
   font-family: var(--font-display-stack);
   letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+/* Every plain link and summary gets the same visible focus ring as the primitives. */
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 /* Fieldbook surface treatment: ruled notebook lines, punched specimen tags, stamps. */
@@ -177,7 +185,8 @@ h2 {
 .decaya-drop-in > :nth-child(7) { animation-delay: 420ms; }
 
 @media (prefers-reduced-motion: reduce) {
-  .decaya-drop-in > * {
+  .decaya-drop-in > *,
+  .decaya-drop-in {
     animation: none;
   }
 }
