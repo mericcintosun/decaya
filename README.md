@@ -21,6 +21,17 @@ The tools that measure this are either heavy (Room EQ Wizard wants a measurement
 
 All measurement and audio work runs in the visitor's browser. The server only serves the seeded fieldbook; no account, no upload, no API key.
 
+## What is real and what is a fixture
+
+Real, in the browser: the whole Web Audio pipeline. Microphone capture (raw PCM through an AudioWorklet, with a MediaRecorder fallback that is flagged in the quality report), onset detection, the octave filter bank in an `OfflineAudioContext`, Schroeder integration, the T20 fit, clap grading, the Sabine prediction, the synthesized impulse responses and `ConvolverNode` playback. No AI model runs anywhere in the product.
+
+Fixtures and stand-ins:
+
+- The ten fieldbook rooms in `lib/data/seed.ts` are illustrative examples, not measurements we took.
+- With `ADAPTER_MODE=fake` (the default), the clap button loads `fixtures/measurement.json`, a stored example dorm-room measurement, and the UI says "Sample data". With `ADAPTER_MODE=real` it uses your microphone and says "Live measurement". The switch is `getEngine(mode)` in `lib/engine.ts`.
+- The dry voice in the A/B player is a formant synth until a CC0 anechoic speech clip is added at `public/audio/dry-speech.wav`. The player names the source it actually used.
+- Rooms you measure are kept in your browser's localStorage; the server has no room store.
+
 What the model says, run over the too-live rooms in the seeded fieldbook: a free duvet hung off the wall cuts mid-band echo roughly three times more than a 12-pack of foam squares. Foam absorbs better per square meter, but twelve squares only cover about one square meter. Area wins.
 
 ## Required tech
@@ -28,6 +39,7 @@ What the model says, run over the too-live rooms in the seeded fieldbook: a free
 This hackathon has no sponsor technology. The core is the Web Audio API:
 
 - `getUserMedia` with `echoCancellation`, `noiseSuppression` and `autoGainControl` set to false (and a warning when the browser ignores that)
+- `AudioWorklet` (`public/worklets/pcm-capture.js`) to copy raw PCM off the audio thread, so no codec touches the clap tail
 - `AnalyserNode` for the live level meter while you clap
 - `OfflineAudioContext` + `BiquadFilterNode` for the octave filter bank and impulse synthesis
 - `ConvolverNode` for the before/after preview
@@ -37,7 +49,9 @@ This hackathon has no sponsor technology. The core is the Web Audio API:
 
 - Next.js 15 (App Router), React 19, TypeScript strict, Tailwind CSS 4, shadcn-style primitives
 - Motion 14 (`motion/react`) for the shared-layout room card expansion and the animated band bars
-- Seed data served through one adapter (`lib/adapter.ts`, `ADAPTER_MODE=fake`) and small JSON routes under `/api`
+- Seed data served through one adapter (`lib/adapter.ts`, `ADAPTER_MODE=fake` or `real`) and small JSON routes under `/api`
+- Zod 3 for route input and fixture validation (`lib/schemas.ts`)
+- Node's built-in test runner through tsx for the unit tests
 - Web Audio API and Canvas 2D, no audio libraries
 - localStorage for rooms you measure (no backend)
 - Vercel
@@ -49,20 +63,53 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The microphone needs a secure context: `localhost` works, and so does any HTTPS deploy. No environment variables are needed (see `.env.example`).
+Open http://localhost:3000. The microphone needs a secure context: `localhost` works, and so does any HTTPS deploy. No secret is needed. `ADAPTER_MODE` is the only setting (see `.env.example`): leave it unset for sample data, or set `ADAPTER_MODE=real` to measure with your microphone.
 
-Optional: drop a CC0 dry (anechoic) speech clip at `public/audio/dry-speech.wav` and the A/B player uses it instead of the built-in formant synth. Credit its source here.
+```bash
+npm test        # unit tests on the pure acoustics functions and the schemas
+npm run proof   # runs the core proofs and the tests, then rewrites the blocks below
+```
 
-## How we tested it
+Optional: drop a CC0 dry (anechoic) speech clip at `public/audio/dry-speech.wav` and the real engine uses it instead of the built-in formant synth.
 
-The design choice we made up front: we fit T20 (-5 to -25 dB) instead of T30, because phone microphones rarely give 35 clean decibels above the noise floor. The table below is the test log; the rows get filled with real measurements during the event.
+## How it was tested
+
+The design choice we made up front: we fit T20 (-5 to -25 dB) instead of T30, because phone microphones rarely give 35 clean decibels above the noise floor.
+
+The four blocks below are written by `npm run proof`. They are synthetic-signal checks, a model prediction and a unit test result, not room measurements.
+
+Unit tests (`tests/core.test.ts`):
+
+<!-- PROOF:BEGIN tests -->
+Run 2026-11-24: npm test passed 5 of 5 tests in tests/core.test.ts (node:test through tsx).
+<!-- PROOF:END tests -->
+
+T20 on a synthetic decay:
+
+<!-- PROOF:BEGIN synthetic-decay -->
+Run 2026-11-24: an ideal exponential decay with RT60 0.9 s (8000 Hz, no noise) went through schroederDb and t20 and read 0.900 s, an error of 0.00 percent.
+<!-- PROOF:END synthetic-decay -->
+
+Demo room prediction (3 x 4 x 2.6 m, thick curtain plus duvet on the wall):
+
+<!-- PROOF:BEGIN demo-prediction -->
+Run 2026-11-24: demo room 3 x 4 x 2.6 m with the fixture measurement (mid band 0.91 s). Predicted mid band with thick curtain + duvet on the wall: 0.47 s. This is a Sabine prediction, not a measurement.
+<!-- PROOF:END demo-prediction -->
+
+Dry voice source:
+
+<!-- PROOF:BEGIN dry-voice -->
+Run 2026-11-24: public/audio/dry-speech.wav is not present, so the A/B uses the formant synth voice.
+<!-- PROOF:END dry-voice -->
+
+Room tests on real devices. We add these numbers by hand after measuring; no row is filled until it has been measured.
 
 | What | How | Result |
 | --- | --- | --- |
-| Measurement sanity | Same phone, dorm room vs. tiled bathroom | (to fill) |
-| Clap grading | Clap right next to the phone on purpose | (to fill) |
-| Cross-check | Same 3 rooms measured with an iOS clap app | (to fill) |
-| Browsers | Chrome desktop, Safari iOS, Chrome Android | (to fill) |
+| Measurement sanity | Same phone, dorm room vs. tiled bathroom | Not measured yet |
+| Clap grading | Clap right next to the phone on purpose | Not measured yet |
+| Cross-check | Same 3 rooms measured with an iOS clap app | Not measured yet |
+| Browsers | Chrome desktop, Safari iOS, Chrome Android | Not measured yet |
 
 ## What we would build next
 
@@ -75,9 +122,8 @@ The design choice we made up front: we fit T20 (-5 to -25 dB) instead of T30, be
 
 - Absorption coefficients adapted from Beranek and from Everest's *Master Handbook of Acoustics*. Duvet, bookshelf and bean bag values are our estimates and are labelled that way in the app.
 - Scene illustrations and logo are original SVGs drawn for this project.
+- Dry voice: no recorded speech clip is included yet. The A/B player uses a formant synth written for this project (`lib/acoustics.ts`).
 
 ## AI use
 
-<!-- Adjust this section to each hackathon's disclosure rules. -->
-
-We used AI coding assistants for scaffolding and boilerplate. Architecture, product decisions, and final code review are our own.
+We used AI coding assistants for scaffolding, boilerplate and parts of the implementation. Architecture, product decisions and final code review are our own. No AI model runs in the product: every number comes from the Web Audio pipeline and Sabine's equation in your browser.
