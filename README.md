@@ -58,7 +58,7 @@ npm test           # unit tests: acoustics, schemas, room store
 npm run proof      # reruns the checks below and rewrites their blocks
 ```
 
-`ADAPTER_MODE` is the only setting (see `.env.example`): unset means sample data, `ADAPTER_MODE=real` uses the microphone. The microphone needs a secure context (`localhost` or HTTPS).
+`ADAPTER_MODE` is the only setting (see `.env.example`): unset or `real` uses the microphone, `ADAPTER_MODE=fake` loads the stored example measurement instead. The microphone needs a secure context (`localhost` or HTTPS).
 
 ## Addresses
 
@@ -68,7 +68,7 @@ npm run proof      # reruns the checks below and rewrites their blocks
 
 ## Live measurement or sample data
 
-The page tells you which one ran. "Live measurement" means the deploy uses your microphone (`ADAPTER_MODE=real`); "Sample data" means it loaded the stored example in `fixtures/measurement.json`. The ten fieldbook rooms are illustrative examples, not measurements we took, and every number shown after an item is added is a prediction.
+The page tells you which one ran. "Live measurement" means the deploy uses your microphone (the default); "Sample data" means it loaded the stored example in `fixtures/measurement.json`. The ten fieldbook rooms are illustrative examples, not measurements we took, and every number shown after an item is added is a prediction.
 
 ## What is real and what is a fixture
 

@@ -83,7 +83,11 @@ export const realAdapter: RoomAdapter = {
     withFallback("listFurnishings", realSource.listFurnishings, fakeAdapter.listFurnishings, (v) => v.length === 0),
 };
 
-/** Reads ADAPTER_MODE. "real" picks the real side; anything else (or unset) means fake. */
+/**
+ * Reads ADAPTER_MODE. The real side needs no secret (the engine runs in the visitor's
+ * browser), so it is the default: unset or any value other than "fake" means real.
+ * ADAPTER_MODE=fake opts into the stored example measurement, for offline demos and tests.
+ */
 export function getAdapter(): RoomAdapter {
-  return process.env.ADAPTER_MODE === "real" ? realAdapter : fakeAdapter;
+  return process.env.ADAPTER_MODE === "fake" ? fakeAdapter : realAdapter;
 }

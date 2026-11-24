@@ -353,6 +353,10 @@ Fix: all five band labels now use kHz ("0.25 kHz", "0.5 kHz", "1 kHz", "2 kHz", 
 
 Re-crawl note: the next crawl reported the same "500 Hz" text on the same four pages. Its screenshots still show the old labels ("250 Hz", "500 Hz"), which means it loaded a build from before the kHz commit (8f54ad6) (corrected below: before 004bb65). In the source, every rendered band label comes from `BAND_LABELS` (`components/band-bars.tsx`, `components/clap-capture.tsx`, `app/about/page.tsx`). No component prints "500 Hz". No further code change is needed. Once the deploy with 8f54ad6 is live, the crawl should come back clean.
 
+Finding (data, `/about`): "In sample mode the measuring page loads a stored example and says "Sample data"." read as a fallback to bundled data.
+Root cause: `getAdapter()` in `lib/adapter.ts` treated an unset `ADAPTER_MODE` as fake, and `.env.example` shipped `ADAPTER_MODE=fake`, so a deploy without the variable served the stored fixture measurement on `/new` even though the real engine needs no secret. The `/about` line was static copy that described sample mode on every deploy.
+Fix: real is now the default (`ADAPTER_MODE=fake` is an explicit opt-in for offline demos), `.env.example` says `ADAPTER_MODE=real`, and the `/about` limits line is driven by `adapter.mode`: in real mode it says a stored example is offered only when the microphone is blocked. README and DEMO updated to match. If the Vercel project has `ADAPTER_MODE=fake` set in its environment, remove it; the code cannot override an explicit setting.
+
 ### QA: external findings
 
 **Production alias serves a stale deployment (2026-11-24, third crawl of the same "500 Hz" finding).**

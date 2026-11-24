@@ -36,7 +36,8 @@ const STEPS = [
 ];
 
 export default async function AboutPage() {
-  const furnishings = await getAdapter().listFurnishings();
+  const adapter = getAdapter();
+  const furnishings = await adapter.listFurnishings();
   return (
     <div className="space-y-14">
       <section className="grid items-center gap-8 lg:grid-cols-[1.2fr_1fr]">
@@ -125,7 +126,11 @@ export default async function AboutPage() {
             <li>Sabine assumes a diffuse field, so every number after an item is added is labelled a prediction.</li>
             <li>Some phones keep voice processing on; Decaya flags it and calls the number a lower bound.</li>
             <li>The preview has no early reflections: a fair A/B of two states, not a recording of your room.</li>
-            <li>In sample mode the measuring page loads a stored example and says &quot;Sample data&quot;.</li>
+            <li>
+              {adapter.mode === "real"
+                ? "If the microphone is blocked, the measuring page offers a stored example measurement and labels the saved room as one."
+                : "This deploy runs without the microphone: the measuring page loads a stored example and labels it as one."}
+            </li>
           </ul>
         </div>
         <figure className="space-y-4">
