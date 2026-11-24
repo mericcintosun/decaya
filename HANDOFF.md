@@ -362,6 +362,15 @@ Evidence that the live site is not the current code:
 Conclusion: the code fix is in place, and the redeploys since 004bb65 are not reaching https://decaya.vercel.app. Likely causes to check in the Vercel dashboard for project `decaya`: failed or cancelled production deployments, deployments created as Preview instead of Production (the alias only moves on a production deploy), or the domain pinned to an older deployment (Instant Rollback leaves the alias locked until a deployment is promoted). Fix: promote the newest READY deployment of HEAD to production (`vercel --prod`, or `vercel promote <url>`), then re-crawl.
 No code change can close this finding while the alias points at the old build.
 
+**Two deployments answer on one domain (2026-11-24, fourth crawl: "500 Hz" on `/` and `/rooms/el-camino-studio-apartment`, plus HTTP 404 for `/_next/static/chunks/825-f7cdf710ff4937b2.js` on `/rooms/founders-hall-3f-double`).**
+Evidence from that crawl's screenshots compared with the repo:
+- `/` renders the pre-faz-5 home: the old claim "Clap once. Hear your room fixed before you buy a thing.", three nav links (no "Example bench"), the old footer "Built for the Peninsula Innovation Hackathon, 2026.", and "250 Hz / 500 Hz" band labels. All of these were replaced in a4abd1d (faz-5) and 8f54ad6.
+- `/rooms/founders-hall-3f-double` and `/rooms/oakmont-coop-shared-bathroom` render the HEAD build: the "Example bench" nav link, the footer "Your audio stays in this browser tab." with "Source on GitHub", and "0.25 kHz / 0.5 kHz" labels.
+- The chunk that 404s, `825-f7cdf710ff4937b2.js`, is in the local `next build` of HEAD (`.next/static/chunks/`, referenced by `app-build-manifest.json` and the prerendered `/rooms/*.html`). So the HEAD HTML asked for its own chunk and a different deployment answered the `/_next/static` request. The same mismatch explains the empty decay canvas and the missing drag handle on that page: its client chunk never loaded.
+- The repo has no service worker, no `vercel.json`, no middleware, no rewrites and no cache headers in `next.config.ts`, so nothing in the code routes paths to different builds.
+Conclusion: on the Vercel side, `decaya.vercel.app` is split across two deployments, or across two Vercel projects. To check: `vercel alias ls` and `vercel inspect decaya.vercel.app` (which deployment the alias resolves to), whether a second Vercel project also claims the `decaya` name or domain, and whether the project's Production Branch matches the branch the runner pushes. Fix: give the domain to exactly one project, promote the newest READY deployment of HEAD (`vercel promote <url>`), then re-crawl. Turning on Skew Protection in the project settings also keeps chunk requests pinned to the deployment that served the HTML.
+Status: not fixed from this repo; the code is already correct at HEAD.
+
 ---
 
 You are picking up a working Next.js 15 scaffold. Read this file, then `IDENTITY.md`, then start on the Mission list. Keep `npm run build` passing after every change.
