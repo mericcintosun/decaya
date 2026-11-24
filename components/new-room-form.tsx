@@ -187,7 +187,7 @@ export function NewRoomForm({ mode }: { mode: AdapterMode }) {
               <EmptyState
                 stamp="No reading yet"
                 title="Clap three times to fill this in."
-                body="The mid-band decay and the five band bars appear here once the claps are analyzed. Nothing is saved until you press save."
+                body="The mid-band decay and the five band bars appear here once the claps are analyzed. Press the button above and clap three times, or use the sample measurement if the microphone is blocked. Nothing is saved until you press save."
                 ctaHref="/about"
                 ctaLabel="How the measurement works"
               />
@@ -198,7 +198,7 @@ export function NewRoomForm({ mode }: { mode: AdapterMode }) {
           <Button size="lg" onClick={save} disabled={!m || saving}>
             {saving ? "Saving..." : "Save to the fieldbook"}
           </Button>
-          {error && <p className="text-sm text-bad">{error}</p>}
+          {error && <p className="break-words text-sm text-bad">{error}</p>}
           {!m && !error && <p className="text-sm text-muted-foreground">You can save once the room is measured.</p>}
         </div>
       </div>

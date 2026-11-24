@@ -8,10 +8,19 @@ import "./globals.css";
 const fraunces = Fraunces({ subsets: ["latin"], display: "swap", variable: "--font-fraunces" });
 const sourceSans = Source_Sans_3({ subsets: ["latin"], display: "swap", variable: "--font-source-sans" });
 
+const SITE_URL = "https://decaya.vercel.app";
+const TITLE = "Decaya: hear your room fixed";
+// Under 160 characters: the problem, then the fix.
+const DESCRIPTION =
+  "Your recording echoes because of the room, not the mic. Clap three times, see what a rug or curtain would change, and hear it first.";
+
 export const metadata: Metadata = {
-  title: { default: "Decaya", template: "%s | Decaya" },
-  description:
-    "Clap once in your room. Decaya measures how long the echo rings, works out which rug or curtain would fix it, and plays you the result before you buy anything.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: TITLE, template: "%s | Decaya" },
+  description: DESCRIPTION,
+  // og:image comes from app/opengraph-image.tsx through the file convention.
+  openGraph: { title: TITLE, description: DESCRIPTION, type: "website", url: "/", siteName: "Decaya" },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
