@@ -9,8 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { EmptyState } from "@/components/states";
+import { useLocalRooms } from "@/components/use-local-rooms";
 import { joinNames, midRt60, VERDICT_LABEL, verdictFor, type Verdict } from "@/lib/acoustics";
-import { fixFor, loadLocalRooms, ROOM_TYPES, ROOM_USES } from "@/lib/data";
+import { fixFor, ROOM_TYPES, ROOM_USES } from "@/lib/data";
+import { clearRooms } from "@/lib/store";
 import type { Furnishing, Room } from "@/lib/types";
 
 const VERDICT_BADGE: Record<Verdict, "ok" | "warn" | "bad"> = {
@@ -41,13 +44,12 @@ export function RoomExplorer({
   initialType: string;
   initialVerdict: string;
 }) {
-  const [localRooms, setLocalRooms] = useState<Room[]>([]);
+  // The only reader of rooms measured in this browser on this route.
+  const { rooms: localRooms, failed: localFailed } = useLocalRooms();
   const [q, setQ] = useState(initialQuery);
   const [type, setType] = useState(initialType);
   const [verdict, setVerdict] = useState(initialVerdict);
   const [open, setOpen] = useState<string | null>(null);
-
-  useEffect(() => setLocalRooms(loadLocalRooms()), []);
 
   useEffect(() => {
     if (!open) return;
@@ -65,7 +67,10 @@ export function RoomExplorer({
     window.history.replaceState(null, "", qs ? `/?${qs}` : "/");
   }, [q, type, verdict]);
 
-  const all = useMemo(() => [...localRooms, ...seedRooms], [localRooms, seedRooms]);
+  const all = useMemo(() => {
+    const seedSlugs = new Set(seedRooms.map((r) => r.slug));
+    return [...localRooms.filter((r) => !seedSlugs.has(r.slug)), ...seedRooms];
+  }, [localRooms, seedRooms]);
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return all.filter((r) => {
@@ -90,6 +95,28 @@ export function RoomExplorer({
             {shown.length} of {all.length} rooms
           </p>
         </div>
+
+        {localFailed && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 border border-warn bg-background p-3 text-sm" role="status">
+            <span className="decaya-stamp text-warn">Not readable</span>
+            <span>Your saved rooms could not be read, showing the examples.</span>
+            <Button variant="outline" size="sm" onClick={() => clearRooms()}>
+              Clear saved rooms
+            </Button>
+          </div>
+        )}
+
+        {localRooms.length > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+            <Button variant="outline" size="sm" onClick={() => clearRooms()}>
+              Clear rooms measured here
+            </Button>
+            <span className="text-muted-foreground">
+              Removes the {localRooms.length === 1 ? "room" : `${localRooms.length} rooms`} saved in this browser. The examples
+              stay. Measure again to bring a room back.
+            </span>
+          </div>
+        )}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_12rem_12rem_auto]">
           <Input
@@ -130,14 +157,18 @@ export function RoomExplorer({
 
         <LayoutGroup>
           {shown.length === 0 ? (
-            <Card className="decaya-specimen decaya-ruled mt-6 p-8 text-center">
-              <span className="decaya-stamp text-muted-foreground">No specimen</span>
-              <p className="mt-3 font-display text-xl">No room in the fieldbook matches that.</p>
-              <p className="mt-2 text-sm text-muted-foreground">Clear the filters, or measure the room you are sitting in.</p>
-              <Button asChild variant="outline" className="mt-4">
-                <Link href="/new">Add a room</Link>
-              </Button>
-            </Card>
+            <EmptyState
+              className="mt-6"
+              stamp="No specimen"
+              title={filtered ? "No room in the fieldbook matches that." : "The fieldbook is empty."}
+              body={
+                filtered
+                  ? "Clear the filters, or measure the room you are sitting in."
+                  : "Measure the room you are sitting in and it becomes the first entry."
+              }
+              ctaHref="/new"
+              ctaLabel="Add a room"
+            />
           ) : (
             // No overflow-x-auto wrapper here on purpose: it would clip the layoutId
             // return animation (signature 1). Rows collapse to one column below sm.
