@@ -1,6 +1,40 @@
 // Decaya's acoustics core. Everything here runs in the visitor's browser:
 // Sabine prediction, Schroeder backward integration with a T20 fit, clap capture,
 // and the synthetic impulse responses used for the before/after preview.
+// Browser globals (AudioContext, fetch, navigator) are touched only inside functions, so
+// the pure helpers (predictRt60, schroederDb, t20, verdictFor) load under plain Node.
+import {
+  CAPTURE_SECONDS,
+  CLAP_TAIL_SEC,
+  CLIP_LEVEL,
+  CURVE_STEP_SEC,
+  DRY_CLIP_URL,
+  FETCH_RETRIES,
+  FETCH_TIMEOUT_MS,
+  FRAME_SEC,
+  HIGH_CONFIDENCE_DR_DB,
+  IMPULSE_BAND_Q,
+  IMPULSE_MAX_SEC,
+  IMPULSE_REVERB_RATIO,
+  IMPULSE_SEED,
+  LOG_PREFIX,
+  MIN_DYNAMIC_RANGE_DB,
+  MIN_ENVELOPE_FRAMES,
+  MIN_TAIL_SEC,
+  NEXT_CLAP_GUARD_SEC,
+  NOISE_PERCENTILE,
+  NOISE_WINDOW_END_SEC,
+  NOISE_WINDOW_START_SEC,
+  OCTAVE_FILTER_Q,
+  ONSET_MIN_GAP_SEC,
+  ONSET_OVER_NOISE_DB,
+  ONSET_RISE_DB,
+  OUTPUT_PEAK,
+  WORKLET_CHUNK,
+  WORKLET_FLUSH_MS,
+  WORKLET_STARTUP_MS,
+} from "./config";
+import { CoreFailure } from "./errors";
 
 export const BANDS = [250, 500, 1000, 2000, 4000] as const;
 export const BAND_LABELS = ["250 Hz", "500 Hz", "1 kHz", "2 kHz", "4 kHz"] as const;
@@ -152,9 +186,9 @@ async function bandFilter(samples: Float32Array, sampleRate: number, freq: numbe
   src.buffer = buf;
   // Two cascaded bandpass biquads approximate an octave filter.
   const a = ctx.createBiquadFilter();
-  a.type = "bandpass"; a.frequency.value = freq; a.Q.value = 1.414;
+  a.type = "bandpass"; a.frequency.value = freq; a.Q.value = OCTAVE_FILTER_Q;
   const b = ctx.createBiquadFilter();
-  b.type = "bandpass"; b.frequency.value = freq; b.Q.value = 1.414;
+  b.type = "bandpass"; b.frequency.value = freq; b.Q.value = OCTAVE_FILTER_Q;
   src.connect(a).connect(b).connect(ctx.destination);
   src.start();
   const out = await ctx.startRendering();
@@ -199,27 +233,31 @@ export interface Measurement {
   curveStepSec: number;
   confidence: "high" | "medium" | "low";
   processingWarning: boolean;
+  /** How the audio was captured: raw PCM, the compressed fallback, or a stored fixture. */
+  capturePath?: "worklet" | "mediarecorder" | "fixture";
 }
 
 /** Find claps, split into octave bands, integrate, fit, and grade the result. */
 export async function analyzeRecording(samples: Float32Array, sampleRate: number, processingWarning = false): Promise<Measurement> {
-  const frame = Math.round(sampleRate * 0.01);
+  const frame = Math.max(1, Math.round(sampleRate * FRAME_SEC));
   const env = frameEnvelopeDb(samples, frame);
-  if (env.length < 50) throw new Error("The recording was too short to analyze.");
+  if (env.length < MIN_ENVELOPE_FRAMES) throw new CoreFailure("no_clap", "The recording was too short to analyze.");
   const sorted = [...env].sort((a, b) => a - b);
-  const noiseDb = sorted[Math.floor(sorted.length * 0.2)];
+  const noiseDb = sorted[Math.floor(sorted.length * NOISE_PERCENTILE)];
 
   const onsetFrames: number[] = [];
-  const minGap = 90; // frames of 10 ms: claps closer than 0.9 s overlap their tails
+  const minGap = Math.round(ONSET_MIN_GAP_SEC / FRAME_SEC); // in envelope frames
   for (let i = 1; i < env.length; i++) {
     const last = onsetFrames[onsetFrames.length - 1];
-    if (env[i] - noiseDb > 25 && env[i] - env[i - 1] > 6 && (last === undefined || i - last >= minGap)) {
+    if (
+      env[i] - noiseDb > ONSET_OVER_NOISE_DB &&
+      env[i] - env[i - 1] > ONSET_RISE_DB &&
+      (last === undefined || i - last >= minGap)
+    ) {
       onsetFrames.push(i);
     }
   }
-  if (onsetFrames.length === 0) {
-    throw new Error("No clap stood out from the background noise. Clap louder, closer to the middle of the room.");
-  }
+  if (onsetFrames.length === 0) throw new CoreFailure("no_clap");
 
   const onsets = onsetFrames.map((f) => {
     let peakIdx = f * frame;
@@ -233,36 +271,57 @@ export async function analyzeRecording(samples: Float32Array, sampleRate: number
 
   const banded = await Promise.all(BANDS.map((f) => bandFilter(samples, sampleRate, f)));
 
-  let curveDb: number[] = [];
-  const curveStepSec = 0.005;
+  const curveStepSec = CURVE_STEP_SEC;
+  const curveStep = Math.max(1, Math.round(curveStepSec * sampleRate));
+  const tailMax = Math.round(CLAP_TAIL_SEC * sampleRate);
+  const minTail = Math.round(MIN_TAIL_SEC * sampleRate);
+  const guard = Math.round(NEXT_CLAP_GUARD_SEC * sampleRate);
+  const noiseFrom = Math.round(NOISE_WINDOW_START_SEC * sampleRate);
+  const noiseTo = Math.round(NOISE_WINDOW_END_SEC * sampleRate);
+
+  // 1 kHz Schroeder curve per clap; the first valid clap's curve is the one we keep.
+  const curves: number[][] = [];
   const claps: ClapReport[] = onsets.map((o, idx) => {
     const next = onsets[idx + 1];
-    const end = Math.min(o.peakIdx + Math.round(1.5 * sampleRate), next ? next.peakIdx - Math.round(0.05 * sampleRate) : samples.length);
-    const clipped = o.peak >= 0.985;
+    const limit = next ? next.peakIdx - guard : samples.length;
+    const end = Math.max(o.peakIdx, Math.min(o.peakIdx + tailMax, limit));
+    const shortTail = end - o.peakIdx < minTail;
+    const clipped = o.peak >= CLIP_LEVEL;
     const dynamicRangeDb = 20 * Math.log10(o.peak + 1e-12) - noiseDb;
+    // A clap near the start of the recording has a short (or empty) noise window: clamp at 0.
+    const noiseStart = Math.max(0, o.peakIdx - noiseFrom);
+    const noiseEnd = Math.max(0, o.peakIdx - noiseTo);
+    let curve1k: number[] = [];
     const bands = banded.map((band, b) => {
+      if (shortTail) return null;
       // Subtract the band's noise power before integrating so the floor does not flatten the fit.
-      const noisePow = meanSquare(band, o.peakIdx - Math.round(0.3 * sampleRate), o.peakIdx - Math.round(0.03 * sampleRate));
-      const energy = new Float32Array(Math.max(0, end - o.peakIdx));
+      const noisePow = meanSquare(band, noiseStart, noiseEnd);
+      const energy = new Float32Array(end - o.peakIdx);
       for (let i = 0; i < energy.length; i++) {
         const v = band[o.peakIdx + i];
         energy[i] = Math.max(v * v - noisePow, 0);
       }
       const curve = schroederDb(energy);
-      if (b === 2 && curveDb.length === 0 && !clipped) {
-        const step = Math.round(curveStepSec * sampleRate);
+      if (b === 2) {
         const pts: number[] = [];
-        for (let i = 0; i < curve.length; i += step) pts.push(curve[i]);
-        curveDb = pts;
+        for (let i = 0; i < curve.length; i += curveStep) pts.push(curve[i]);
+        curve1k = pts;
       }
       return t20(curve, sampleRate);
     });
+    curves.push(curve1k);
     let reason: string | null = null;
     if (clipped) reason = "Clipped: the clap overloaded the microphone.";
-    else if (dynamicRangeDb < 30) reason = `Only ${Math.round(dynamicRangeDb)} dB above the noise, 30 dB needed.`;
+    else if (shortTail) reason = "Not enough tail after this clap.";
+    else if (dynamicRangeDb < MIN_DYNAMIC_RANGE_DB)
+      reason = `Only ${Math.round(dynamicRangeDb)} dB above the noise, ${MIN_DYNAMIC_RANGE_DB} dB needed.`;
     else if (bands[1] === null || bands[2] === null) reason = "The mid bands did not decay cleanly.";
     return { index: idx + 1, valid: reason === null, clipped, dynamicRangeDb, bands, reason };
   });
+
+  let curveIdx = claps.findIndex((c) => c.valid);
+  if (curveIdx < 0) curveIdx = claps.findIndex((c, i) => !c.clipped && curves[i].length > 0);
+  const curveDb = curveIdx >= 0 ? curves[curveIdx] : [];
 
   const usable = claps.filter((c) => c.valid);
   const pool = usable.length > 0 ? usable : claps;
@@ -270,14 +329,12 @@ export async function analyzeRecording(samples: Float32Array, sampleRate: number
     const vals = pool.map((c) => c.bands[b]).filter((v): v is number => v !== null);
     return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
   });
-  if (avg[1] === null || avg[2] === null) {
-    throw new Error("Could not fit a decay to any clap. Try a quieter moment and sharper claps.");
-  }
+  if (avg[1] === null || avg[2] === null) throw new CoreFailure("fit_failed");
   const midFallback = (avg[1] + avg[2]) / 2;
   const bands = avg.map((v) => v ?? midFallback) as BandValues;
   const dr = Math.min(...pool.map((c) => c.dynamicRangeDb));
   const validCount = usable.length;
-  const confidence = validCount >= 3 && dr >= 40 ? "high" : validCount >= 2 ? "medium" : "low";
+  const confidence = validCount >= 3 && dr >= HIGH_CONFIDENCE_DR_DB ? "high" : validCount >= 2 ? "medium" : "low";
   return { bands, claps, validCount, dynamicRangeDb: dr, curveDb, curveStepSec, confidence, processingWarning };
 }
 
@@ -285,35 +342,103 @@ export interface Recording {
   samples: Float32Array;
   sampleRate: number;
   processingWarning: boolean;
+  /** "worklet" = raw PCM from an AudioWorklet; "mediarecorder" = compressed fallback. */
+  path: "worklet" | "mediarecorder";
 }
 
-/** Records the microphone for a fixed window with browser voice processing switched off. */
-export async function recordClaps(seconds: number, onLevel?: (peak: number) => void): Promise<Recording> {
-  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-    throw new Error("This browser cannot open the microphone. Use Chrome, Edge or Safari over HTTPS.");
-  }
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+function abortError(): DOMException {
+  return new DOMException("The capture was cancelled.", "AbortError");
+}
+
+/** Resolves after ms, or rejects with an AbortError as soon as the signal fires. */
+function wait(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(abortError());
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(abortError());
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
-  const settings = stream.getAudioTracks()[0]?.getSettings();
-  const processingWarning = Boolean(settings?.echoCancellation || settings?.noiseSuppression || settings?.autoGainControl);
+}
 
-  const ctx = new AudioContext();
-  const source = ctx.createMediaStreamSource(stream);
-  const analyser = ctx.createAnalyser();
-  analyser.fftSize = 2048;
-  source.connect(analyser);
-  const frameBuf = new Float32Array(analyser.fftSize);
-  let raf = 0;
-  const tick = () => {
-    analyser.getFloatTimeDomainData(frameBuf);
-    let p = 0;
-    for (let i = 0; i < frameBuf.length; i++) p = Math.max(p, Math.abs(frameBuf[i]));
-    onLevel?.(p);
-    raf = requestAnimationFrame(tick);
+function concat(chunks: Float32Array[], total: number): Float32Array {
+  const out = new Float32Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return out;
+}
+
+/**
+ * Raw PCM path: public/worklets/pcm-capture.js copies input channel 0 to this thread in
+ * chunks. Throws (so the caller can fall back) when worklets are missing or deliver nothing.
+ */
+async function captureWithWorklet(
+  ctx: AudioContext,
+  source: MediaStreamAudioSourceNode,
+  seconds: number,
+  signal?: AbortSignal,
+): Promise<Float32Array> {
+  if (!ctx.audioWorklet || typeof AudioWorkletNode === "undefined") throw new Error("AudioWorklet is not available");
+  await ctx.audioWorklet.addModule("/worklets/pcm-capture.js");
+  const node = new AudioWorkletNode(ctx, "pcm-capture", {
+    numberOfInputs: 1,
+    numberOfOutputs: 1,
+    outputChannelCount: [1],
+    channelCount: 1,
+    channelCountMode: "explicit",
+    processorOptions: { chunk: WORKLET_CHUNK },
+  });
+  const chunks: Float32Array[] = [];
+  let total = 0;
+  let onFinal: () => void = () => {};
+  const final = new Promise<void>((resolve) => {
+    onFinal = resolve;
+  });
+  node.port.onmessage = (e: MessageEvent<{ samples?: Float32Array; final?: boolean }>) => {
+    if (e.data.samples) {
+      chunks.push(e.data.samples);
+      total += e.data.samples.length;
+    }
+    if (e.data.final) onFinal();
   };
-  tick();
+  // Some browsers only run a node that reaches the destination; a muted gain keeps it silent.
+  const mute = ctx.createGain();
+  mute.gain.value = 0;
+  source.connect(node);
+  node.connect(mute).connect(ctx.destination);
+  try {
+    await wait(WORKLET_STARTUP_MS, signal);
+    if (total === 0) throw new Error("The AudioWorklet delivered no audio");
+    await wait(Math.max(0, seconds * 1000 - WORKLET_STARTUP_MS), signal);
+    node.port.postMessage("flush");
+    await Promise.race([final, wait(WORKLET_FLUSH_MS)]);
+  } finally {
+    node.port.onmessage = null;
+    source.disconnect(node);
+    node.disconnect();
+    mute.disconnect();
+  }
+  return concat(chunks, total);
+}
 
+/** Compressed fallback for browsers without AudioWorklet. Tails may be smeared by the codec. */
+async function captureWithMediaRecorder(
+  ctx: AudioContext,
+  stream: MediaStream,
+  seconds: number,
+  signal?: AbortSignal,
+): Promise<{ samples: Float32Array; sampleRate: number }> {
+  if (typeof MediaRecorder === "undefined") {
+    throw new CoreFailure("mic_unavailable", "This browser can neither stream raw audio nor record it.");
+  }
   const recorder = new MediaRecorder(stream);
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => {
@@ -323,17 +448,73 @@ export async function recordClaps(seconds: number, onLevel?: (peak: number) => v
     recorder.onstop = () => resolve();
   });
   recorder.start();
-  await new Promise((r) => setTimeout(r, seconds * 1000));
-  recorder.stop();
+  try {
+    await wait(seconds * 1000, signal);
+  } finally {
+    if (recorder.state !== "inactive") recorder.stop();
+  }
   await stopped;
-  cancelAnimationFrame(raf);
-  onLevel?.(0);
-  stream.getTracks().forEach((t) => t.stop());
-
   const blob = new Blob(chunks, { type: recorder.mimeType });
   const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
-  await ctx.close();
-  return { samples: decoded.getChannelData(0).slice(), sampleRate: decoded.sampleRate, processingWarning };
+  return { samples: decoded.getChannelData(0).slice(), sampleRate: decoded.sampleRate };
+}
+
+/**
+ * Records the microphone for a fixed window with browser voice processing switched off.
+ * Tries raw PCM through an AudioWorklet first and falls back to MediaRecorder (with
+ * processingWarning forced on). The stream tracks are stopped and the context closed on
+ * every exit path: success, error and abort (the caller aborts on unmount).
+ */
+export async function recordClaps(
+  seconds: number = CAPTURE_SECONDS,
+  onLevel?: (peak: number) => void,
+  signal?: AbortSignal,
+): Promise<Recording> {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    throw new CoreFailure("mic_unavailable");
+  }
+  let stream: MediaStream | null = null;
+  let ctx: AudioContext | null = null;
+  let raf = 0;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+    });
+    if (signal?.aborted) throw abortError();
+    const settings = stream.getAudioTracks()[0]?.getSettings();
+    const voiceProcessing = Boolean(settings?.echoCancellation || settings?.noiseSuppression || settings?.autoGainControl);
+
+    ctx = new AudioContext();
+    await ctx.resume().catch(() => undefined);
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+    const frameBuf = new Float32Array(analyser.fftSize);
+    const tick = () => {
+      analyser.getFloatTimeDomainData(frameBuf);
+      let p = 0;
+      for (let i = 0; i < frameBuf.length; i++) p = Math.max(p, Math.abs(frameBuf[i]));
+      onLevel?.(p);
+      raf = requestAnimationFrame(tick);
+    };
+    tick();
+
+    try {
+      const samples = await captureWithWorklet(ctx, source, seconds, signal);
+      return { samples, sampleRate: ctx.sampleRate, processingWarning: voiceProcessing, path: "worklet" };
+    } catch (e) {
+      if (signal?.aborted || (e instanceof DOMException && e.name === "AbortError")) throw e;
+      console.warn(`${LOG_PREFIX} raw PCM capture unavailable, falling back to MediaRecorder`);
+    }
+    const rec = await captureWithMediaRecorder(ctx, stream, seconds, signal);
+    return { ...rec, processingWarning: true, path: "mediarecorder" };
+  } finally {
+    cancelAnimationFrame(raf);
+    onLevel?.(0);
+    stream?.getTracks().forEach((t) => t.stop());
+    if (ctx && ctx.state !== "closed") await ctx.close().catch(() => undefined);
+  }
 }
 
 /* ---------------- Preview: synthetic impulse responses and a dry voice ---------------- */
@@ -353,14 +534,14 @@ function mulberry32(seed: number) {
  * Band-filtered, exponentially decaying noise, one band per octave, summed.
  * Both sides of the A/B use the same seeded noise so they differ only in decay time.
  */
-export async function synthesizeImpulse(bands: BandValues, sampleRate: number): Promise<AudioBuffer> {
+export async function synthesizeImpulse(bands: BandValues, sampleRate: number, seed: number = IMPULSE_SEED): Promise<AudioBuffer> {
   const longest = Math.max(...bands);
-  const length = Math.ceil(sampleRate * Math.min(longest * 1.1 + 0.15, 4));
+  const length = Math.ceil(sampleRate * Math.min(longest * 1.1 + 0.15, IMPULSE_MAX_SEC));
   const ctx = new OfflineAudioContext(1, length, sampleRate);
   bands.forEach((rt, i) => {
     const noise = ctx.createBuffer(1, length, sampleRate);
     const d = noise.getChannelData(0);
-    const rand = mulberry32(9001 + i * 31);
+    const rand = mulberry32(seed + i * 31);
     const k = -3 / (sampleRate * Math.max(rt, 0.05)); // amplitude falls 60 dB over rt seconds
     for (let n = 0; n < length; n++) d[n] = (rand() * 2 - 1) * Math.pow(10, k * n);
     const src = ctx.createBufferSource();
@@ -368,7 +549,7 @@ export async function synthesizeImpulse(bands: BandValues, sampleRate: number): 
     const f = ctx.createBiquadFilter();
     f.type = "bandpass";
     f.frequency.value = BANDS[i];
-    f.Q.value = 1.1;
+    f.Q.value = IMPULSE_BAND_Q;
     src.connect(f).connect(ctx.destination);
     src.start();
   });
@@ -377,7 +558,7 @@ export async function synthesizeImpulse(bands: BandValues, sampleRate: number): 
   let tail = 0;
   for (let n = 0; n < d.length; n++) tail += d[n] * d[n];
   // Reverberant energy is proportional to 1/A, so it grows with the decay time.
-  const ratio = 2.2 * midRt60(bands);
+  const ratio = IMPULSE_REVERB_RATIO * midRt60(bands);
   const scale = Math.sqrt(ratio / Math.max(tail, 1e-9));
   const level = 1 / Math.sqrt(1 + ratio); // loudness match between A and B
   for (let n = 0; n < d.length; n++) d[n] *= scale * level;
@@ -448,7 +629,7 @@ async function synthesizeVoice(sampleRate: number): Promise<AudioBuffer> {
   const d = out.getChannelData(0);
   let peak = 0;
   for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
-  for (let i = 0; i < d.length; i++) d[i] = (d[i] / (peak || 1)) * 0.8;
+  for (let i = 0; i < d.length; i++) d[i] = (d[i] / (peak || 1)) * OUTPUT_PEAK;
   return out;
 }
 
@@ -457,21 +638,50 @@ export interface DryVoice {
   label: string;
 }
 
+export const SYNTH_VOICE_LABEL = "synthetic dry voice (formant synth, recorded in no room)";
+export const CLIP_VOICE_LABEL = "CC0 dry speech recording";
+
+/** The formant synth on its own. The fake engine always uses this. */
+export async function synthesizeDryVoice(sampleRate: number): Promise<DryVoice> {
+  return { buffer: await synthesizeVoice(sampleRate), label: SYNTH_VOICE_LABEL };
+}
+
 /**
- * Adapter for the dry source. TODO: drop a CC0 anechoic speech clip at
- * public/audio/dry-speech.wav (credit it in the README) and it is used automatically;
- * until then the formant synth above stands in and the UI says so.
+ * Dry source for the real engine. Fetches DRY_CLIP_URL with a per-attempt timeout and
+ * exactly FETCH_RETRIES retries (a bounded loop, two attempts in total). A 404, a bad
+ * status or a decode failure falls through to the formant synth without throwing, and
+ * the label always names the source that actually plays.
  */
 export async function loadDryVoice(sampleRate: number): Promise<DryVoice> {
-  try {
-    const res = await fetch("/audio/dry-speech.wav");
-    if (res.ok) {
-      const ctx = new OfflineAudioContext(1, 1, sampleRate);
-      const buffer = await ctx.decodeAudioData(await res.arrayBuffer());
-      return { buffer, label: "CC0 dry speech recording" };
+  const attempts = 1 + FETCH_RETRIES;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    let bytes: ArrayBuffer | null = null;
+    try {
+      const res = await fetch(DRY_CLIP_URL, { signal: controller.signal });
+      if (res.status === 404) {
+        console.info(`${LOG_PREFIX} dry voice: no clip at ${DRY_CLIP_URL}, using the formant synth`);
+        break;
+      }
+      if (res.ok) bytes = await res.arrayBuffer();
+      else console.warn(`${LOG_PREFIX} dry voice: attempt ${attempt} of ${attempts} returned status ${res.status}`);
+    } catch {
+      console.warn(`${LOG_PREFIX} dry voice: attempt ${attempt} of ${attempts} timed out or failed`);
+    } finally {
+      clearTimeout(timer);
     }
-  } catch {
-    // fall through to the synth
+    if (bytes) {
+      try {
+        const ctx = new OfflineAudioContext(1, 1, sampleRate);
+        const buffer = await ctx.decodeAudioData(bytes);
+        console.info(`${LOG_PREFIX} dry voice: clip decoded, ${buffer.duration.toFixed(2)} s`);
+        return { buffer, label: CLIP_VOICE_LABEL };
+      } catch {
+        console.warn(`${LOG_PREFIX} dry voice: clip did not decode, using the formant synth`);
+        break;
+      }
+    }
   }
-  return { buffer: await synthesizeVoice(sampleRate), label: "synthetic dry voice (formant synth, recorded in no room)" };
+  return synthesizeDryVoice(sampleRate);
 }

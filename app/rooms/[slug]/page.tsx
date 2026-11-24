@@ -27,7 +27,7 @@ export default async function RoomPage({ params }: { params: Params }) {
       <Button asChild variant="link" size="sm">
         <Link href="/">All rooms in the fieldbook</Link>
       </Button>
-      <RoomBench slug={slug} seedRoom={room} furnishings={furnishings} />
+      <RoomBench slug={slug} seedRoom={room} furnishings={furnishings} mode={adapter.mode} />
       <figure className="grid items-center gap-6 border-t border-border pt-8 md:grid-cols-[1fr_1.2fr]">
         <figcaption className="max-w-[60ch]">
           <h2 className="text-2xl font-semibold">Why the A/B is fair</h2>

@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { midRt60, type Measurement } from "@/lib/acoustics";
 import { ROOM_TYPES, ROOM_USES, saveLocalRoom, slugify } from "@/lib/data";
-import type { Room, RoomType, RoomUse } from "@/lib/types";
+import type { AdapterMode, Room, RoomType, RoomUse } from "@/lib/types";
 
 /** Name the room, clap, save. The room lands at the top of the fieldbook on this device. */
-export function NewRoomForm() {
+export function NewRoomForm({ mode }: { mode: AdapterMode }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [owner, setOwner] = useState("");
@@ -39,7 +39,10 @@ export function NewRoomForm() {
       claps: { valid: m.validCount, total: m.claps.length },
       dynamicRangeDb: Math.round(m.dynamicRangeDb),
       measuredOn: new Date().toISOString().slice(0, 10),
-      notes: `Measured in this browser with ${m.validCount} usable claps, ${m.confidence} confidence.`,
+      notes:
+        mode === "real"
+          ? `Measured in this browser with ${m.validCount} usable claps, ${m.confidence} confidence.`
+          : "Sample data: these values are a stored example measurement, no microphone was used.",
       source: "local",
     };
     saveLocalRoom(room);
@@ -121,7 +124,7 @@ export function NewRoomForm() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <ClapCapture onResult={setM} />
+            <ClapCapture mode={mode} onResult={setM} />
             {m && (
               <div>
                 <p className="mb-3 font-display text-2xl">{midRt60(m.bands).toFixed(2)} s mid-band decay</p>

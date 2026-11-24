@@ -1,8 +1,10 @@
-// The one data seam. Pages and API routes read rooms and furnishings through getAdapter().
+// The one data seam, and the only file that reads ADAPTER_MODE. Pages and API routes read
+// rooms and furnishings through getAdapter(); server pages pass getAdapter().mode down to
+// client components, which pick a measurement engine with getEngine(mode) in lib/engine.ts.
 import { SEED_FURNISHINGS, SEED_ROOMS } from "./data/seed";
-import type { Furnishing, Room } from "./types";
+import type { AdapterMode, Furnishing, Room } from "./types";
 
-export type AdapterMode = "fake" | "real";
+export type { AdapterMode };
 
 export interface RoomAdapter {
   mode: AdapterMode;
@@ -27,9 +29,10 @@ export const fakeAdapter: RoomAdapter = {
 };
 
 /**
- * Honest stub. Real rooms are measured in the visitor's browser and kept in that
- * browser's localStorage, so the server has nothing of its own to serve yet. Until
- * Phase 2 decides what (if anything) moves server-side, this delegates to the fake adapter.
+ * Real mode. The real work is the measurement engine (realEngine in lib/engine.ts:
+ * microphone, raw PCM capture, octave filters, Schroeder and T20, all in the browser).
+ * The room methods still serve the seeded fieldbook, because measured rooms live in the
+ * visitor's browser (localStorage) and there is no server store. They stay on fixtures.
  */
 export const realAdapter: RoomAdapter = {
   mode: "real",
@@ -38,7 +41,7 @@ export const realAdapter: RoomAdapter = {
   listFurnishings: () => fakeAdapter.listFurnishings(),
 };
 
-/** Reads ADAPTER_MODE. "real" picks the real adapter; anything else (or unset) means fake. */
+/** Reads ADAPTER_MODE. "real" picks the real side; anything else (or unset) means fake. */
 export function getAdapter(): RoomAdapter {
   return process.env.ADAPTER_MODE === "real" ? realAdapter : fakeAdapter;
 }

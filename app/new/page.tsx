@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { NewRoomForm } from "@/components/new-room-form";
+import { getAdapter } from "@/lib/adapter";
 
 export const metadata: Metadata = { title: "Measure a room" };
 
 export default function NewRoomPage() {
+  const { mode } = getAdapter();
   return (
     <div className="space-y-8">
       <div className="max-w-[68ch]">
@@ -13,7 +15,7 @@ export default function NewRoomPage() {
           where you can try curtains and rugs on it and listen.
         </p>
       </div>
-      <NewRoomForm />
+      <NewRoomForm mode={mode} />
     </div>
   );
 }
