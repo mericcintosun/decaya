@@ -1,7 +1,7 @@
 // Thin shim kept so existing "@/lib/data" importers keep working.
 // Types live in lib/types.ts, the seeded fieldbook in lib/data/seed.ts, and pages
 // read seed data through getAdapter() in lib/adapter.ts.
-import { bestFix, midRt60, predictRt60 } from "./acoustics";
+import { bestFix, midRt60, predictRt60, type Measurement } from "./acoustics";
 import { SEED_FURNISHINGS, SEED_ROOMS } from "./data/seed";
 import type { Furnishing, Room, RoomType, RoomUse } from "./types";
 
@@ -40,27 +40,23 @@ export function averageCut(itemId: string, pool: Room[] = SEED_ROOMS, catalog: F
   return cuts.reduce((s, c) => s + c, 0) / cuts.length;
 }
 
-/* ---------- Rooms measured in this browser (no server: localStorage) ---------- */
+/* ---------- Rooms measured in this browser ---------- */
+// Storage lives in lib/store.ts (readRooms, saveRoom, clearRooms, subscribeRooms).
+// The store decision (localStorage, with KV and Postgres rejected) is recorded in
+// HANDOFF.md under "Phase 3 log, Decisions".
 
-const STORAGE_KEY = "decaya.rooms.v1";
-
-// TODO: swap this localStorage adapter for a shared store (for example Vercel KV)
-// if rooms should be visible across devices. Same two functions, same Room shape.
-export function loadLocalRooms(): Room[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? (parsed as Room[]) : [];
-  } catch {
-    return [];
-  }
+/**
+ * The note saved with a room. It follows the measurement, not the page mode, so a
+ * sample used as a fallback in real mode is never recorded as a live measurement.
+ */
+export function measurementNote(m: Pick<Measurement, "capturePath" | "validCount" | "confidence">): string {
+  return m.capturePath === "fixture"
+    ? "Sample data: these values are a stored example measurement, no microphone was used."
+    : `Measured in this browser with ${m.validCount} usable claps, ${m.confidence} confidence.`;
 }
 
-export function saveLocalRoom(room: Room): void {
-  const others = loadLocalRooms().filter((r) => r.slug !== room.slug);
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify([room, ...others]));
-}
+/** Length caps that match storedRoomSchema in lib/schemas.ts. */
+export const FIELD_LIMITS = { name: 120, owner: 80, city: 80 } as const;
 
 export function slugify(text: string): string {
   return text
