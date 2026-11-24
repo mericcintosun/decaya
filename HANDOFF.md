@@ -375,6 +375,15 @@ Evidence from that crawl's screenshots compared with the repo:
 Conclusion: on the Vercel side, `decaya.vercel.app` is split across two deployments, or across two Vercel projects. To check: `vercel alias ls` and `vercel inspect decaya.vercel.app` (which deployment the alias resolves to), whether a second Vercel project also claims the `decaya` name or domain, and whether the project's Production Branch matches the branch the runner pushes. Fix: give the domain to exactly one project, promote the newest READY deployment of HEAD (`vercel promote <url>`), then re-crawl. Turning on Skew Protection in the project settings also keeps chunk requests pinned to the deployment that served the HTML.
 Status: not fixed from this repo; the code is already correct at HEAD.
 
+**`/about` still served from the old deployment (2026-11-24, crawl qa-mwupuu3j: data finding "In sample mode the measuring page loads a stored example and says "Sample data".").**
+Evidence that this is the same split deployment, not a live fallback:
+- That sentence is no longer in the repo. `grep "In sample mode the measuring page"` over `app/`, `components/` and `lib/` finds nothing. Commit 7da8546 replaced it with a line driven by `adapter.mode` (`app/about/page.tsx:130`). In the default real mode that line reads "If the microphone is blocked, the measuring page offers a stored example measurement and labels the saved room as one."
+- If the deploy had `ADAPTER_MODE=fake` set, HEAD would render the other branch ("This deploy runs without the microphone: ..."), not the crawled sentence. So the crawled HTML did not come from HEAD with any env setting.
+- In the same crawl, `/new` (screenshot qa-3) renders the HEAD build in real mode: the "Start listening" mic button, the "Example bench" nav link and the "Your audio stays in this browser tab." footer. `/about` (qa-4) has the same new header and footer but the old limits line, so it came from a build made after faz-5 but before 7da8546.
+- `getAdapter()` (`lib/adapter.ts:91`) defaults to real; no code path serves fixture data on `/about` or `/new` unless the visitor blocks the mic and picks "Use the sample measurement".
+Conclusion: `decaya.vercel.app` answered `/about` with an older deployment than `/new`. Same steps as the entry above: check `vercel alias ls` and `vercel inspect decaya.vercel.app`, give the domain to one project, promote the newest READY deployment of HEAD, turn on Skew Protection, then re-crawl. Also confirm `ADAPTER_MODE` is unset or `real` in the Vercel project's Production environment.
+Status: no code change; the page is correct at HEAD.
+
 ---
 
 You are picking up a working Next.js 15 scaffold. Read this file, then `IDENTITY.md`, then start on the Mission list. Keep `npm run build` passing after every change.
