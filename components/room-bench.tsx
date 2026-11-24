@@ -10,9 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  BAND_LABELS,
   joinNames,
-  loadDryVoice,
   midRt60,
   predictRt60,
   synthesizeImpulse,
@@ -25,7 +23,9 @@ import {
   type RoomDims,
 } from "@/lib/acoustics";
 import { fixFor, loadLocalRooms, saveLocalRoom } from "@/lib/data";
-import type { Room } from "@/lib/types";
+import { IMPULSE_SEED } from "@/lib/config";
+import { getEngine } from "@/lib/engine";
+import type { AdapterMode, Room } from "@/lib/types";
 
 /** True when the room carries five finite, positive band decay times. */
 function hasBandData(room: Room): boolean {
@@ -37,7 +37,17 @@ function hasBandData(room: Room): boolean {
 }
 
 /** Detail page body. Seeded rooms arrive from the server; rooms measured here load from localStorage. */
-export function RoomBench({ slug, seedRoom, furnishings }: { slug: string; seedRoom: Room | null; furnishings: Furnishing[] }) {
+export function RoomBench({
+  slug,
+  seedRoom,
+  furnishings,
+  mode,
+}: {
+  slug: string;
+  seedRoom: Room | null;
+  furnishings: Furnishing[];
+  mode: AdapterMode;
+}) {
   const [room, setRoom] = useState<Room | null>(seedRoom);
   const [loaded, setLoaded] = useState(Boolean(seedRoom));
 
@@ -92,10 +102,10 @@ export function RoomBench({ slug, seedRoom, furnishings }: { slug: string; seedR
       </Card>
     );
   }
-  return <Bench room={room} furnishings={furnishings} />;
+  return <Bench room={room} furnishings={furnishings} mode={mode} />;
 }
 
-function Bench({ room, furnishings }: { room: Room; furnishings: Furnishing[] }) {
+function Bench({ room, furnishings, mode }: { room: Room; furnishings: Furnishing[]; mode: AdapterMode }) {
   const [measured, setMeasured] = useState<BandValues>(room.measured);
   const [dims, setDims] = useState<RoomDims>(room.dims);
   const [picked, setPicked] = useState<string[]>(() => fixFor(room, furnishings).items.map((i) => i.id));
@@ -220,7 +230,12 @@ function Bench({ room, furnishings }: { room: Room; furnishings: Furnishing[] })
         </Card>
       </div>
 
-      <ListenAB measured={measured} predicted={predicted} afterLabel={items.length ? `With ${joinNames(items)}` : "Nothing added"} />
+      <ListenAB
+        mode={mode}
+        measured={measured}
+        predicted={predicted}
+        afterLabel={items.length ? `With ${joinNames(items)}` : "Nothing added"}
+      />
 
       <Card>
         <CardHeader>
@@ -228,7 +243,7 @@ function Bench({ room, furnishings }: { room: Room; furnishings: Furnishing[] })
           <CardDescription>Standing in it right now? A new measurement replaces the numbers above.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ClapCapture onResult={onMeasured} label="Re-measure with claps" />
+          <ClapCapture mode={mode} onResult={onMeasured} label="Re-measure with claps" />
         </CardContent>
       </Card>
     </div>
@@ -236,52 +251,112 @@ function Bench({ room, furnishings }: { room: Room; furnishings: Furnishing[] })
 }
 
 /** The wow moment: the same phrase through the measured room, then through the predicted one. */
-function ListenAB({ measured, predicted, afterLabel }: { measured: BandValues; predicted: BandValues; afterLabel: string }) {
+function ListenAB({
+  mode,
+  measured,
+  predicted,
+  afterLabel,
+}: {
+  mode: AdapterMode;
+  measured: BandValues;
+  predicted: BandValues;
+  afterLabel: string;
+}) {
+  const engine = getEngine(mode);
   const ctxRef = useRef<AudioContext | null>(null);
   const voiceRef = useRef<DryVoice | null>(null);
-  const srcRef = useRef<AudioBufferSourceNode | null>(null);
+  // Both impulse responses, built together for one pair of band values.
+  const irsRef = useRef<{ key: string; now: AudioBuffer; after: AudioBuffer } | null>(null);
+  const playingRef = useRef<{ src: AudioBufferSourceNode; out: GainNode } | null>(null);
+  const tokenRef = useRef(0);
   const [state, setState] = useState<"idle" | "loading" | "now" | "after" | "error">("idle");
   const [voiceLabel, setVoiceLabel] = useState<string | null>(null);
 
-  useEffect(() => () => void ctxRef.current?.close(), []);
+  /** Fades the current clip and its reverb tail out over 30 ms, so A and B never overlap. */
+  function fadeOut() {
+    const p = playingRef.current;
+    const ctx = ctxRef.current;
+    playingRef.current = null;
+    if (!p || !ctx) return;
+    const t = ctx.currentTime;
+    p.out.gain.cancelScheduledValues(t);
+    p.out.gain.setValueAtTime(p.out.gain.value, t);
+    p.out.gain.linearRampToValueAtTime(0, t + 0.03);
+    try {
+      p.src.stop(t + 0.04);
+    } catch {
+      // already stopped
+    }
+    setTimeout(() => p.out.disconnect(), 120);
+  }
+
+  useEffect(
+    () => () => {
+      fadeOut();
+      void ctxRef.current?.close();
+    },
+    [],
+  );
 
   function stop() {
-    srcRef.current?.stop();
-    srcRef.current = null;
+    tokenRef.current++;
+    fadeOut();
     setState("idle");
   }
 
   async function play(which: "now" | "after") {
+    const token = ++tokenRef.current;
+    fadeOut();
     try {
-      srcRef.current?.stop();
-      setState("loading");
       const ctx = ctxRef.current ?? new AudioContext();
       ctxRef.current = ctx;
       await ctx.resume();
-      if (!voiceRef.current) {
-        voiceRef.current = await loadDryVoice(ctx.sampleRate);
-        setVoiceLabel(voiceRef.current.label);
+      const key = JSON.stringify([measured, predicted, ctx.sampleRate]);
+      let voice = voiceRef.current;
+      let irs = irsRef.current;
+      if (!voice || !irs || irs.key !== key) {
+        setState("loading");
+        if (!voice) {
+          voice = await engine.dryVoice(ctx.sampleRate);
+          voiceRef.current = voice;
+          setVoiceLabel(voice.label);
+        }
+        if (!irs || irs.key !== key) {
+          // Same function, same seed, same loudness match: only the band values differ.
+          // Both buffers exist before either plays, so switching sides has no build gap.
+          const [nowIr, afterIr] = await Promise.all([
+            synthesizeImpulse(measured, ctx.sampleRate, IMPULSE_SEED),
+            synthesizeImpulse(predicted, ctx.sampleRate, IMPULSE_SEED),
+          ]);
+          irs = { key, now: nowIr, after: afterIr };
+          irsRef.current = irs;
+        }
       }
-      const ir = await synthesizeImpulse(which === "now" ? measured : predicted, ctx.sampleRate);
+      if (token !== tokenRef.current) return;
+      const ir = which === "now" ? irs.now : irs.after;
       const src = ctx.createBufferSource();
-      src.buffer = voiceRef.current.buffer;
+      src.buffer = voice.buffer;
       const conv = ctx.createConvolver();
       conv.normalize = false;
       conv.buffer = ir;
-      const gain = ctx.createGain();
-      gain.gain.value = 0.9;
-      src.connect(conv).connect(gain).connect(ctx.destination);
+      const out = ctx.createGain();
+      out.gain.value = 0.9;
+      src.connect(conv).connect(out).connect(ctx.destination);
+      const playing = { src, out };
       src.onended = () => {
-        if (srcRef.current === src) {
-          srcRef.current = null;
-          setTimeout(() => setState((s) => (s === which ? "idle" : s)), ir.duration * 1000);
-        }
+        // Let the reverb tail ring out before the button returns to idle.
+        setTimeout(() => {
+          if (playingRef.current === playing) {
+            playingRef.current = null;
+            setState((s) => (s === which ? "idle" : s));
+          }
+        }, ir.duration * 1000);
       };
-      srcRef.current = src;
+      playingRef.current = playing;
       src.start();
       setState(which);
     } catch {
-      setState("error");
+      if (token === tokenRef.current) setState("error");
     }
   }
 
@@ -303,6 +378,12 @@ function ListenAB({ measured, predicted, afterLabel }: { measured: BandValues; p
             <Play aria-hidden /> {afterLabel} ({midRt60(predicted).toFixed(2)} s)
           </Button>
         </div>
+        <p className="text-sm">
+          <span className="font-semibold">Voice:</span> {voiceLabel ?? "named here after the first play"}.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Both versions use the same synthetic room model, so this is a relative preview, not a recording of your room.
+        </p>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           {(state === "now" || state === "after") && (
             <Button variant="ghost" size="sm" onClick={stop}>
@@ -310,15 +391,10 @@ function ListenAB({ measured, predicted, afterLabel }: { measured: BandValues; p
             </Button>
           )}
           <span aria-live="polite">
-            {state === "loading" && "Building the impulse responses..."}
+            {state === "loading" && "Building both impulse responses..."}
             {state === "error" && <span className="text-bad">This browser could not start audio. Tap again, or try Chrome.</span>}
-            {voiceLabel && state !== "error" && state !== "loading" && `Source: ${voiceLabel}.`}
           </span>
         </div>
-        <p className="text-xs text-muted-foreground">
-          A relative preview: the synthetic decay has no early reflections, so it will not sound exactly like your room. It
-          does let you compare {BAND_LABELS.length} bands of before and after by ear.
-        </p>
       </CardContent>
     </Card>
   );
