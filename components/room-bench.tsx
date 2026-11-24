@@ -22,6 +22,7 @@ import {
   type Measurement,
   type RoomDims,
 } from "@/lib/acoustics";
+import { RoomSizeHandle } from "@/components/room-size-handle";
 import { BenchSkeleton, EmptyState } from "@/components/states";
 import { useLocalRooms } from "@/components/use-local-rooms";
 import { fixFor, measurementNote } from "@/lib/data";
@@ -80,12 +81,15 @@ export function RoomBench({
     return (
       <Card className="decaya-specimen decaya-ruled p-8">
         <span className="decaya-stamp text-warn">No band data</span>
-        <h1 className="mt-3 text-3xl font-semibold">{room.name} has no decay numbers yet</h1>
+        <h1 className="mt-3 break-words text-3xl font-semibold" title={room.name}>
+          {room.name} has no decay numbers yet
+        </h1>
         <p className="mt-2 max-w-[60ch] text-muted-foreground">
-          The bench needs five band decay times to draw the curve, predict a fix and play the before and after. Measure the
-          room with three claps to fill them in.
+          The decay curve, the predicted bars, the room size handle and the before and after player appear here once the room
+          has five band decay times. Measure the room with three claps, or press &quot;Use the sample measurement&quot; on the
+          measuring page, to fill them in.
         </p>
-        <div className="mt-4 flex gap-3">
+        <div className="mt-4 flex flex-wrap gap-3">
           <Button asChild>
             <Link href="/new">Measure a room</Link>
           </Button>
@@ -162,9 +166,11 @@ function Bench({ room, furnishings, mode }: { room: Room; furnishings: Furnishin
     <div className="space-y-6">
       <Card className="decaya-specimen p-6">
         <div className="flex flex-wrap items-start justify-between gap-4 pr-6">
-          <div>
-            <h1 className="text-4xl font-semibold leading-tight">{room.name}</h1>
-            <p className="mt-1 text-muted-foreground">
+          <div className="min-w-0">
+            <h1 className="break-words text-4xl font-semibold leading-tight" title={room.name}>
+              {room.name}
+            </h1>
+            <p className="mt-1 break-words text-muted-foreground">
               {room.owner}, {room.city} ·{" "}
               {room.source === "fieldbook" ? `illustrative example values, dated ${room.measuredOn}` : `measured ${room.measuredOn}`}
             </p>
@@ -176,7 +182,7 @@ function Bench({ room, furnishings, mode }: { room: Room; furnishings: Furnishin
             <span className="text-xs text-muted-foreground">noise floor {dr} dB under the clap</span>
           </div>
         </div>
-        <p className="mt-4 max-w-[70ch]">{room.notes}</p>
+        <p className="mt-4 max-w-[70ch] break-words">{room.notes}</p>
         <p className="mt-4 font-display text-2xl">
           {before.toFixed(2)} s mid-band decay.{" "}
           <span className="text-muted-foreground">{VERDICT_LABEL[vBefore]} for a voice.</span>
@@ -206,13 +212,14 @@ function Bench({ room, furnishings, mode }: { room: Room; furnishings: Furnishin
             <fieldset className="grid grid-cols-3 gap-2">
               <legend className="mb-2 text-sm font-semibold">Room size in meters</legend>
               {(["length", "width", "height"] as const).map((k) => (
-                <label key={k} className="text-xs text-muted-foreground">
+                <label key={k} className="min-w-0 text-xs text-muted-foreground">
                   {k}
                   <Input
                     type="number"
                     step="0.1"
                     min="1"
                     max="20"
+                    aria-label={`Room ${k} in meters`}
                     value={dims[k]}
                     onChange={(e) => {
                       const v = Number(e.target.value);
@@ -222,6 +229,23 @@ function Bench({ room, furnishings, mode }: { room: Room; furnishings: Furnishin
                 </label>
               ))}
             </fieldset>
+            {/* Signature 2: drag the width. Same dims state as the inputs above, same predictRt60. */}
+            <div className="space-y-3 border-t border-border pt-3">
+              <p className="text-sm">
+                <span className="font-semibold">Predicted, from your room size:</span>{" "}
+                <span className="font-display text-lg tabular-nums">{after.toFixed(2)} s</span> mid-band decay
+              </p>
+              <RoomSizeHandle value={dims.width} onChange={(w) => setDims((d) => ({ ...d, width: w }))} />
+              {/* Below lg the band card sits above this one, so a copy of the bars moves here while you drag. */}
+              <div className="lg:hidden" aria-hidden>
+                <BandBars measured={measured} predicted={items.length ? predicted : undefined} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {items.length === 0
+                  ? "Tap an item below first. With nothing added the prediction equals your measurement at any size."
+                  : "The same items cover less of a bigger room, so the predicted decay rises as you widen it. This is a Sabine prediction, not a measurement."}
+              </p>
+            </div>
             <ul className="space-y-2">
               {furnishings.map((f) => {
                 const on = picked.includes(f.id);
@@ -231,7 +255,7 @@ function Bench({ room, furnishings, mode }: { room: Room; furnishings: Furnishin
                     <Button
                       variant="outline"
                       aria-pressed={on}
-                      className="h-auto w-full justify-between whitespace-normal px-3 py-2 text-left"
+                      className="h-auto min-h-11 w-full justify-between whitespace-normal px-3 py-2 text-left"
                       onClick={() => setPicked((p) => (on ? p.filter((x) => x !== f.id) : [...p, f.id]))}
                     >
                       <span>
@@ -272,7 +296,7 @@ function Bench({ room, furnishings, mode }: { room: Room; furnishings: Furnishin
           <ClapCapture mode={mode} onResult={onMeasured} label="Re-measure with claps" />
           {room.source === "local" ? (
             <div className="flex flex-wrap items-center gap-4">
-              <Button onClick={saveRemeasure} disabled={!pending || saving}>
+              <Button className="min-h-11" onClick={saveRemeasure} disabled={!pending || saving}>
                 {saving ? "Saving..." : "Save the new numbers"}
               </Button>
               {saveMsg && <p className={saveMsg.ok ? "text-sm text-ok" : "text-sm text-bad"}>{saveMsg.text}</p>}
@@ -412,10 +436,23 @@ function ListenAB({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Button size="lg" variant="outline" aria-pressed={state === "now"} onClick={() => play("now")} disabled={state === "loading"}>
+          <Button
+            size="lg"
+            variant="outline"
+            className="h-auto min-h-11 whitespace-normal py-2"
+            aria-pressed={state === "now"}
+            onClick={() => play("now")}
+            disabled={state === "loading"}
+          >
             <Play aria-hidden /> Your room now ({midRt60(measured).toFixed(2)} s)
           </Button>
-          <Button size="lg" aria-pressed={state === "after"} onClick={() => play("after")} disabled={state === "loading"}>
+          <Button
+            size="lg"
+            className="h-auto min-h-11 whitespace-normal py-2"
+            aria-pressed={state === "after"}
+            onClick={() => play("after")}
+            disabled={state === "loading"}
+          >
             <Play aria-hidden /> {afterLabel} ({midRt60(predicted).toFixed(2)} s)
           </Button>
         </div>
@@ -427,7 +464,7 @@ function ListenAB({
         </p>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           {(state === "now" || state === "after") && (
-            <Button variant="ghost" size="sm" onClick={stop}>
+            <Button variant="ghost" className="min-h-11" onClick={stop}>
               <Square aria-hidden /> Stop
             </Button>
           )}
