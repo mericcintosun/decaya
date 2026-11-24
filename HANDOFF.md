@@ -351,10 +351,16 @@ Finding: visible text "500 Hz" on `/` and on three `/rooms/[slug]` pages.
 Root cause: no failure. The text is the 500 hertz octave band label from `BAND_LABELS` (`lib/acoustics.ts`), shown by the band bars. The crawler's error matcher read the bare "500" as an HTTP status. No request on those pages failed.
 Fix: all five band labels now use kHz ("0.25 kHz", "0.5 kHz", "1 kHz", "2 kHz", "4 kHz"), so the bands read on one scale and no label contains "500". The label column in `components/band-bars.tsx` grew from 3.25rem to 3.75rem to fit "0.25 kHz". The band frequencies used for filtering (`BANDS`) are unchanged.
 
-Re-crawl note: the next crawl reported the same "500 Hz" text on the same four pages. Its screenshots still show the old labels ("250 Hz", "500 Hz"), which means it loaded a build from before the kHz commit (8f54ad6). In the source, every rendered band label comes from `BAND_LABELS` (`components/band-bars.tsx`, `components/clap-capture.tsx`, `app/about/page.tsx`). No component prints "500 Hz". No further code change is needed. Once the deploy with 8f54ad6 is live, the crawl should come back clean.
+Re-crawl note: the next crawl reported the same "500 Hz" text on the same four pages. Its screenshots still show the old labels ("250 Hz", "500 Hz"), which means it loaded a build from before the kHz commit (8f54ad6) (corrected below: before 004bb65). In the source, every rendered band label comes from `BAND_LABELS` (`components/band-bars.tsx`, `components/clap-capture.tsx`, `app/about/page.tsx`). No component prints "500 Hz". No further code change is needed. Once the deploy with 8f54ad6 is live, the crawl should come back clean.
 
 ### QA: external findings
-None this round.
+
+**Production alias serves a stale deployment (2026-11-24, third crawl of the same "500 Hz" finding).**
+Evidence that the live site is not the current code:
+- The live `/about` page shows the step text "two cascaded bandpass BiquadFilterNodes at 250, 500, 1000, 2000 and 4000 Hz" and table headers "250 Hz / 500 Hz". `git log -S "cascaded bandpass"` shows that sentence was removed in commit 004bb65 (method page rewrite), several commits before faz-5. The live build is therefore older than 004bb65, not merely older than the kHz commit 8f54ad6 as the earlier note assumed.
+- A local `next build` of HEAD has zero matches for "500 Hz" in `.next/server`, and all ten `/rooms/*.html` pages plus `/about.html` render "0.5 kHz".
+Conclusion: the code fix is in place, and the redeploys since 004bb65 are not reaching https://decaya.vercel.app. Likely causes to check in the Vercel dashboard for project `decaya`: failed or cancelled production deployments, deployments created as Preview instead of Production (the alias only moves on a production deploy), or the domain pinned to an older deployment (Instant Rollback leaves the alias locked until a deployment is promoted). Fix: promote the newest READY deployment of HEAD to production (`vercel --prod`, or `vercel promote <url>`), then re-crawl.
+No code change can close this finding while the alias points at the old build.
 
 ---
 
