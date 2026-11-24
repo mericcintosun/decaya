@@ -32,17 +32,10 @@ export default async function RoomPage({ params }: { params: Params }) {
         <figcaption className="max-w-[60ch]">
           <h2 className="text-2xl font-semibold">Why the A/B is fair</h2>
           <p className="mt-2 text-muted-foreground">
-            Both clips go through the same seeded noise, the same five octave filters and the same loudness match. Only the
-            decay time per band changes, so what you hear is the curtain, not a different recording.
+            Same noise, same filters, same loudness. Only the decay per band changes, so what you hear is the curtain.
           </p>
         </figcaption>
-        <SceneSlot
-          n={2}
-          alt="Two speech waveforms on ruled paper, the left one smeared by a long echo tail, the right one crisp after a curtain and a duvet are added"
-          width={960}
-          height={540}
-          className="border border-border"
-        />
+        <SceneSlot n={2} alt="Two speech waveforms on ruled paper, the left one smeared by a long echo tail, the right one crisp after a curtain and a duvet are added" width={960} height={540} className="border border-border" />
       </figure>
     </div>
   );

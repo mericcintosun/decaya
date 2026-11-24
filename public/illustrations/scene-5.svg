@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="960" height="400">
+  <defs>
+    <pattern id="rule5" width="960" height="32" patternUnits="userSpaceOnUse">
+      <path d="M0 31.5 H960" stroke="#cfc9b4" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="960" height="400" fill="#f5f2e6"/>
+  <rect width="960" height="400" fill="url(#rule5)"/>
+  <path d="M72 0 V400" stroke="#9c3b2a" stroke-width="1" opacity="0.5"/>
+  <rect x="160" y="150" width="520" height="190" fill="#ebe7d4" stroke="#26311f" stroke-width="2"/>
+  <rect x="180" y="170" width="480" height="150" fill="#dfe2cc" stroke="#26311f" stroke-width="1.5"/>
+  <path d="M340 170 V320 M500 170 V320" stroke="#26311f" stroke-width="1.5"/>
+  <rect x="380" y="128" width="80" height="22" fill="#f5f2e6" stroke="#26311f" stroke-width="2"/>
+  <path d="M420 150 V160" stroke="#26311f" stroke-width="2"/>
+  <path d="M700 110 C730 140 740 180 740 210" fill="none" stroke="#26311f" stroke-width="1.5"/>
+  <g transform="translate(700 210) rotate(6)">
+    <path d="M0 0 H150 L168 18 V80 H0 Z" fill="#f5f2e6" stroke="#26311f" stroke-width="2"/>
+    <circle cx="150" cy="20" r="6" fill="#ebe7d4" stroke="#26311f" stroke-width="1.5"/>
+    <path d="M16 50 H130 M16 66 H100" stroke="#cfc9b4" stroke-width="2"/>
+  </g>
+  <g transform="translate(220 60) rotate(-4)">
+    <rect width="210" height="46" fill="none" stroke="#c9932a" stroke-width="3"/>
+    <rect x="5" y="5" width="200" height="36" fill="none" stroke="#c9932a" stroke-width="1.5"/>
+    <text x="22" y="30" font-family="Georgia, serif" font-size="17" fill="#c9932a" letter-spacing="3">NO SPECIMEN</text>
+  </g>
+</svg>

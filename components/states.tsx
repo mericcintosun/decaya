@@ -116,6 +116,7 @@ export function EmptyState({
   secondaryLabel,
   className = "",
   as = "p",
+  image,
 }: {
   stamp: string;
   title: string;
@@ -127,10 +128,13 @@ export function EmptyState({
   className?: string;
   /** "h1" when the empty state is the whole page body. */
   as?: "p" | "h1";
+  /** An optional scene slot shown above the stamp. */
+  image?: React.ReactNode;
 }) {
   const Title = as;
   return (
-    <div className={`decaya-specimen decaya-ruled border border-border bg-surface p-8 ${className}`}>
+    <div className={`decaya-specimen border border-border bg-surface p-8 ${className}`}>
+      {image && <div className="mb-6 max-w-2xl">{image}</div>}
       <span className="decaya-stamp text-muted-foreground">{stamp}</span>
       <Title className={as === "h1" ? "mt-3 text-3xl font-semibold" : "mt-3 font-display text-xl"}>{title}</Title>
       <p className="mt-2 max-w-[60ch] text-sm text-muted-foreground">{body}</p>

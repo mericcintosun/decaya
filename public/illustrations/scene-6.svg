@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <pattern id="rule6" width="800" height="32" patternUnits="userSpaceOnUse">
+      <path d="M0 31.5 H800" stroke="#cfc9b4" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="800" height="600" fill="#f5f2e6"/>
+  <rect width="800" height="600" fill="url(#rule6)"/>
+  <path d="M64 0 V600" stroke="#9c3b2a" stroke-width="1" opacity="0.5"/>
+  <path d="M120 120 Q160 220 130 320 Q100 420 140 520 L300 520 Q260 420 290 320 Q320 220 280 120 Z" fill="#dfe2cc" stroke="#26311f" stroke-width="2"/>
+  <path d="M170 130 Q200 230 175 330 Q150 430 185 515 M230 125 Q260 225 235 325 Q210 425 245 515" fill="none" stroke="#26311f" stroke-width="1.5"/>
+  <path d="M520 380 L700 340 L720 470 L540 510 Z" fill="#ebe7d4" stroke="#26311f" stroke-width="2"/>
+  <path d="M540 410 L705 375 M548 450 L712 414" fill="none" stroke="#26311f" stroke-width="1.2" stroke-dasharray="6 6"/>
+  <path d="M400 260 A90 90 0 0 1 580 260" fill="none" stroke="#26311f" stroke-width="6"/>
+  <rect x="380" y="250" width="44" height="80" fill="#3d7a3d" stroke="#26311f" stroke-width="2"/>
+  <rect x="556" y="250" width="44" height="80" fill="#3d7a3d" stroke="#26311f" stroke-width="2"/>
+  <g fill="none" stroke="#3d7a3d" stroke-width="3">
+    <path d="M360 270 A30 30 0 0 0 360 310" opacity="0.7"/>
+    <path d="M340 255 A50 50 0 0 0 340 325" opacity="0.4"/>
+    <path d="M620 270 A30 30 0 0 1 620 310" opacity="0.7"/>
+    <path d="M640 255 A50 50 0 0 1 640 325" opacity="0.4"/>
+  </g>
+  <g transform="translate(420 80) rotate(-4)">
+    <path d="M0 0 H200 L220 20 V84 H0 Z" fill="#f5f2e6" stroke="#26311f" stroke-width="2"/>
+    <circle cx="200" cy="22" r="6" fill="#ebe7d4" stroke="#26311f" stroke-width="1.5"/>
+    <text x="16" y="34" font-family="Georgia, serif" font-size="14" fill="#26311f" letter-spacing="2">SPECIMEN NOTE</text>
+    <text x="16" y="66" font-family="Georgia, serif" font-size="22" fill="#3d7a3d">listen first</text>
+  </g>
+</svg>

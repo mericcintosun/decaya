@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { SceneSlot } from "@/components/scene-slot";
 import { EmptyState } from "@/components/states";
 import { useLocalRooms } from "@/components/use-local-rooms";
 import { joinNames, midRt60, VERDICT_LABEL, verdictFor, type Verdict } from "@/lib/acoustics";
@@ -118,7 +119,7 @@ export function RoomExplorer({
           </div>
         )}
 
-        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_12rem_12rem_auto]">
+        <div className={filtered ? "mt-4 grid gap-3 md:grid-cols-[1fr_12rem_12rem_auto]" : "mt-4 grid gap-3 md:grid-cols-[1fr_12rem_12rem]"}>
           <Input
             type="search"
             value={q}
@@ -142,17 +143,18 @@ export function RoomExplorer({
               </option>
             ))}
           </Select>
-          <Button
-            variant="outline"
-            disabled={!filtered}
-            onClick={() => {
-              setQ("");
-              setType("");
-              setVerdict("");
-            }}
-          >
-            Clear
-          </Button>
+          {filtered && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setQ("");
+                setType("");
+                setVerdict("");
+              }}
+            >
+              Clear
+            </Button>
+          )}
         </div>
 
         <LayoutGroup>
@@ -163,11 +165,12 @@ export function RoomExplorer({
               title={filtered ? "No room in the fieldbook matches that." : "The fieldbook is empty."}
               body={
                 filtered
-                  ? "Rooms that match your search and filters show up here with their mid-band decay. Press Clear above to see every room, or measure the room you are sitting in to add it."
-                  : "Rooms show up here with their mid-band decay and the cheapest fix. Measure the room you are sitting in with three claps and it becomes the first entry."
+                  ? "Press Clear above to see every room, or measure the room you are in to add it."
+                  : "Measure the room you are in with three claps and it becomes the first entry."
               }
               ctaHref="/new"
               ctaLabel="Add a room"
+              image={<SceneSlot n={5} alt="An empty specimen drawer on ruled paper with one blank tag on a string, stamped No specimen" width={960} height={400} className="border border-border" />}
             />
           ) : (
             // No overflow-x-auto wrapper here on purpose: it would clip the layoutId
@@ -181,7 +184,7 @@ export function RoomExplorer({
                   <li key={room.slug} className="min-h-[5.5rem]">
                     {open !== room.slug && (
                       <motion.div layoutId={`room-${room.slug}`} transition={{ type: "spring", stiffness: 260, damping: 30 }}>
-                        <Card className="decaya-specimen grid items-center gap-4 p-4 pr-10 md:grid-cols-[4rem_1fr_7rem_9rem_auto]">
+                        <Card className="grid items-center gap-4 p-4 md:grid-cols-[4rem_1fr_7rem_9rem_auto]">
                           <span className="font-display text-sm text-muted-foreground">No. {String(idx + 1).padStart(2, "0")}</span>
                           <div className="min-w-0">
                             <Link
@@ -192,7 +195,7 @@ export function RoomExplorer({
                               {room.name}
                             </Link>
                             <p
-                              className="truncate text-sm text-muted-foreground"
+                              className="break-words text-sm text-muted-foreground md:truncate"
                               title={`${room.owner}, ${room.city} · ${typeLabel(room.type)} · ${useLabel(room.use)}`}
                             >
                               {room.owner}, {room.city} · {typeLabel(room.type)} · {useLabel(room.use)}

@@ -11,139 +11,132 @@ export const metadata: Metadata = { title: "Method" };
 const STEPS = [
   {
     title: "Catch the clap",
-    body: "getUserMedia opens the microphone with echo cancellation, noise suppression and auto gain switched off. Seven seconds are recorded, then split into 10 ms frames. A frame that jumps 25 dB above the quietest fifth of the recording, and 6 dB above the frame before it, is a clap onset.",
+    body: "Three claps are recorded with voice processing off, and a frame that jumps 25 dB over the quiet floor marks each one.",
   },
   {
     title: "Split into octaves",
-    body: "An OfflineAudioContext runs the recording through two cascaded bandpass BiquadFilterNodes at 250, 500, 1000, 2000 and 4000 Hz. Each clap gets 1.5 s of tail per band, cut short if the next clap arrives first.",
+    body: "An OfflineAudioContext filters every clap into five bands, 250 Hz to 4 kHz, with 1.5 s of tail each.",
   },
   {
     title: "Integrate backwards, fit 20 dB",
-    body: "The band's noise power (measured just before the clap) is subtracted, then the squared signal is integrated from the end back to the start (Schroeder). A straight line fitted from -5 to -25 dB gives the slope; 60 dB divided by that slope is RT60. We use T20, not T30, because phone microphones rarely give 35 clean decibels.",
+    body: "Schroeder integration, then a line from -5 to -25 dB gives RT60 (T20, because phone mics rarely give 35 clean dB).",
   },
   {
     title: "Grade the claps",
-    body: "A clap is thrown out if it clipped, if it stood less than 30 dB above the noise, or if the mid bands did not decay cleanly. Three good claps with 40 dB of range earn high confidence. The result is the average of the claps that passed.",
+    body: "A clap that clipped or stood under 30 dB above the noise is thrown out; the result averages the rest.",
   },
   {
     title: "Solve Sabine both ways",
-    body: "RT60 = 0.161 V / A. From your room size and measured decay we recover A, the absorption already there. Each item adds its area times the gap between its coefficient and the average of the surface it covers. Solving forwards gives the new decay per band.",
+    body: "RT60 = 0.161 V / A, solved backwards for the absorption already there, then forwards with each item added.",
   },
   {
     title: "Play it back",
-    body: "Two impulse responses are built from seeded noise, filtered per octave and faded at each band's decay rate. A ConvolverNode runs the same dry phrase through each. Loudness is matched, so the only thing that changes between A and B is the decay.",
+    body: "Two impulse responses from the same seeded noise run the same dry phrase through a ConvolverNode at matched loudness.",
   },
 ];
 
 export default async function AboutPage() {
   const furnishings = await getAdapter().listFurnishings();
   return (
-    <div className="space-y-12">
-      <section className="grid items-start gap-8 lg:grid-cols-[1.2fr_1fr]">
-        <div className="max-w-[68ch]">
+    <div className="space-y-14">
+      <section className="grid items-center gap-8 lg:grid-cols-[1.2fr_1fr]">
+        <div className="max-w-[65ch]">
           <h1 className="text-4xl font-semibold">How Decaya measures a room</h1>
-          <p className="mt-4">
-            Students recording podcasts, covers and class presentations in dorm rooms blame the microphone and buy a new one.
-            Most of the time the problem is the room: hard floors and bare walls keep every syllable ringing for close to a
-            second. Measuring tools exist (Room EQ Wizard wants a measurement mic and a desktop, ClapIR is iOS only), but a
-            number alone does not answer the real question: what should I put in this room, and will I hear the difference?
-          </p>
-          <p className="mt-3 text-muted-foreground">
-            Decaya answers both, in a browser tab, with no server and no account. Every step below runs on your device using
-            the Web Audio API.
+          <p className="mt-4 leading-7">
+            A number alone does not tell you what to put in a room, so Decaya measures the decay, predicts what an item would
+            change, and lets you listen. Every step runs in your browser with the Web Audio API.
           </p>
         </div>
-        <SceneSlot
-          n={3}
-          alt="A field notebook page with an absorption chart pinned beside a curtain, a folded duvet and a bookshelf, each tagged with a specimen label"
-          width={960}
-          height={720}
-          className="border border-border"
-        />
+        <SceneSlot n={3} alt="A field notebook page with an absorption chart pinned beside a curtain, a folded duvet and a bookshelf, each tagged with a specimen label" width={960} height={720} className="border border-border" />
       </section>
 
       <section aria-labelledby="pipeline">
         <h2 id="pipeline" className="text-3xl font-semibold">
           From clap to curtain
         </h2>
-        <div className="mt-5 grid gap-4 md:grid-cols-2">
-          {STEPS.map((s) => (
-            <Card key={s.title} className="decaya-specimen">
-              <CardHeader>
-                <CardTitle>{s.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="max-w-[65ch] text-sm leading-6">{s.body}</p>
-              </CardContent>
-            </Card>
+        <ol className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {STEPS.map((s, i) => (
+            <li key={s.title}>
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>
+                    <span className="mr-2 text-muted-foreground">{i + 1}.</span>
+                    {s.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm leading-6">{s.body}</p>
+                </CardContent>
+              </Card>
+            </li>
           ))}
-        </div>
+        </ol>
       </section>
 
       <section aria-labelledby="coefficients">
         <h2 id="coefficients" className="text-3xl font-semibold">
           The absorption table
         </h2>
-        <p className="mt-2 max-w-[68ch] text-muted-foreground">
-          Coefficients from 0 (reflects everything) to 1 (absorbs everything). Duvet, bookshelf and bean bag are our estimates
-          and are labelled that way. Prices are what a student actually pays: free for things you own.
-        </p>
-        <Card className="mt-5">
-          <div className="overflow-x-auto">
-          <table className="w-full min-w-[44rem] text-left text-sm">
-            <thead className="border-b border-foreground">
-              <tr>
-                <th className="p-3 font-semibold">Item</th>
-                <th className="p-3 font-semibold">Area</th>
-                {BAND_LABELS.map((b) => (
-                  <th key={b} className="p-3 text-right font-semibold">
-                    {b}
-                  </th>
-                ))}
-                <th className="p-3 text-right font-semibold">Cost</th>
-                <th className="p-3 font-semibold">Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              {furnishings.map((f) => (
-                <tr key={f.id} className="border-b border-border last:border-0">
-                  <td className="p-3 font-semibold">{f.name}</td>
-                  <td className="p-3 tabular-nums">{f.areaM2} m²</td>
-                  {f.alpha.map((a, i) => (
-                    <td key={i} className="p-3 text-right tabular-nums">
-                      {a.toFixed(2)}
-                    </td>
+        <details className="group mt-4 border border-border bg-card">
+          <summary className="flex min-h-11 cursor-pointer items-center px-4 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Show the coefficients per band for all {furnishings.length} items (duvet, bookshelf and bean bag are our estimates)
+          </summary>
+          <div className="overflow-x-auto border-t border-border">
+            <table className="w-full min-w-[44rem] text-left text-sm">
+              <thead className="border-b border-foreground">
+                <tr>
+                  <th className="p-3 font-semibold">Item</th>
+                  <th className="p-3 font-semibold">Area</th>
+                  {BAND_LABELS.map((b) => (
+                    <th key={b} className="p-3 text-right font-semibold">
+                      {b}
+                    </th>
                   ))}
-                  <td className="p-3 text-right tabular-nums">{f.costUsd === 0 ? "free" : `$${f.costUsd}`}</td>
-                  <td className="p-3 text-muted-foreground">{f.source}</td>
+                  <th className="p-3 text-right font-semibold">Cost</th>
+                  <th className="p-3 font-semibold">Source</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {furnishings.map((f) => (
+                  <tr key={f.id} className="border-b border-border last:border-0">
+                    <td className="p-3 font-semibold">{f.name}</td>
+                    <td className="p-3 tabular-nums">{f.areaM2} m²</td>
+                    {f.alpha.map((a, i) => (
+                      <td key={i} className="p-3 text-right tabular-nums">
+                        {a.toFixed(2)}
+                      </td>
+                    ))}
+                    <td className="p-3 text-right tabular-nums">{f.costUsd === 0 ? "free" : `$${f.costUsd}`}</td>
+                    <td className="p-3 text-muted-foreground">{f.source}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </Card>
+        </details>
       </section>
 
-      <section aria-labelledby="limits" className="grid gap-6 md:grid-cols-[1fr_1fr]">
+      <section aria-labelledby="limits" className="grid items-start gap-8 md:grid-cols-2">
         <div className="max-w-[65ch]">
           <h2 id="limits" className="text-3xl font-semibold">
             Where it is rough
           </h2>
           <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6">
-            <li>Sabine assumes a diffuse field. Small, cluttered rooms break that, so every prediction is labelled a prediction.</li>
-            <li>Some phones keep voice processing on even when asked not to. Decaya detects it and tells you the number is a lower bound.</li>
-            <li>The preview has no early reflections. It is a fair comparison between two states of your room, not a recording of it.</li>
-            <li>A deploy in sample mode loads a stored example measurement instead of using the microphone, and the measuring page says so.</li>
+            <li>Sabine assumes a diffuse field, so every number after an item is added is labelled a prediction.</li>
+            <li>Some phones keep voice processing on; Decaya flags it and calls the number a lower bound.</li>
+            <li>The preview has no early reflections: a fair A/B of two states, not a recording of your room.</li>
+            <li>In sample mode the measuring page loads a stored example and says &quot;Sample data&quot;.</li>
           </ul>
         </div>
-        <Card className="decaya-ruled flex flex-col justify-between gap-4 p-6">
-          <p className="font-display text-xl leading-snug">
-            No sponsor SDK, no API key, no model. Just the Web Audio API that ships in every modern browser.
-          </p>
-          <Button asChild variant="outline" className="self-start">
-            <Link href="/new">Try it on your room</Link>
-          </Button>
-        </Card>
+        <figure className="space-y-4">
+          <SceneSlot n={6} alt="A pair of headphones resting on a ruled notebook page next to a curtain swatch and a duvet corner, with a specimen tag reading listen first" width={800} height={600} className="border border-border" />
+          <figcaption className="flex flex-wrap items-center justify-between gap-3">
+            <span className="font-display text-xl">Listen before you buy.</span>
+            <Button asChild variant="outline">
+              <Link href="/new">Try it on your room</Link>
+            </Button>
+          </figcaption>
+        </figure>
       </section>
     </div>
   );
