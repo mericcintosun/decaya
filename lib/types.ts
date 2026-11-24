@@ -1,7 +1,11 @@
 // Shared types for Decaya. Pages, components, the adapter and the API routes import from here.
 import type { BandValues, Furnishing, RoomDims, Verdict } from "./acoustics";
+import type { CoreError } from "./errors";
 
 export type { BandValues, Furnishing, RoomDims, Verdict };
+
+/** Which side of the seam is live. Read from ADAPTER_MODE in lib/adapter.ts only. */
+export type AdapterMode = "fake" | "real";
 
 export type RoomType = "dorm" | "bedroom" | "studio" | "bathroom" | "study" | "garage" | "closet" | "living";
 export type RoomUse = "podcast" | "vocals" | "lectures" | "streaming";
@@ -24,7 +28,5 @@ export interface Room {
   source: "fieldbook" | "local";
 }
 
-/** The one response shape every API route returns. */
-export type ApiResponse<T> =
-  | { ok: true; data: T; mode: "fake" | "real" }
-  | { ok: false; error: { code: string; message: string } };
+/** The one response shape every API route returns. Failures carry a typed code and one human sentence. */
+export type ApiResponse<T> = { ok: true; data: T; mode: AdapterMode } | ({ ok: false } & CoreError);
