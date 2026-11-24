@@ -1,52 +1,97 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Mic } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Mic, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { analyzeRecording, BAND_LABELS, recordClaps, type Measurement } from "@/lib/acoustics";
-
-const SECONDS = 7;
+import { BAND_LABELS, type Measurement } from "@/lib/acoustics";
+import { CAPTURE_SECONDS } from "@/lib/config";
+import { getEngine } from "@/lib/engine";
+import { coreError, isCoreError, type CoreError } from "@/lib/errors";
+import type { AdapterMode } from "@/lib/types";
 
 type Phase =
   | { kind: "idle" }
   | { kind: "recording"; secondsLeft: number }
   | { kind: "analyzing" }
   | { kind: "done"; m: Measurement }
-  | { kind: "error"; message: string };
+  | { kind: "error"; err: CoreError };
 
-function explain(e: unknown): string {
-  if (e instanceof DOMException && e.name === "NotAllowedError") {
-    return "Microphone access was blocked. Allow it from the address bar, then try again.";
+/** A short title per error code. The sentence under it is the error's own hint. */
+function errorTitle(err: CoreError): string {
+  switch (err.error) {
+    case "mic_denied":
+      return "Microphone blocked.";
+    case "mic_unavailable":
+      return "No microphone available.";
+    case "no_clap":
+      return "No clap found.";
+    case "fit_failed":
+      return "No clean decay to fit.";
+    case "parse_failure":
+      return "Example data unreadable.";
+    default:
+      return "Something went wrong.";
   }
-  if (e instanceof DOMException && e.name === "NotFoundError") return "No microphone was found on this device.";
-  return e instanceof Error ? e.message : "Something went wrong while listening.";
 }
 
-/** Listens for 7 seconds, finds the claps, and reports RT60 per band with a quality grade. */
-export function ClapCapture({ onResult, label = "Start listening" }: { onResult: (m: Measurement) => void; label?: string }) {
+const CAPTURE_LABEL: Record<NonNullable<Measurement["capturePath"]>, string> = {
+  worklet: "raw PCM (AudioWorklet)",
+  mediarecorder: "compressed recording (MediaRecorder fallback)",
+  fixture: "stored example, no capture",
+};
+
+/** Listens for the capture window, finds the claps, and reports RT60 per band with a quality grade. */
+export function ClapCapture({
+  mode,
+  onResult,
+  label = "Start listening",
+}: {
+  mode: AdapterMode;
+  onResult: (m: Measurement) => void;
+  label?: string;
+}) {
+  const engine = getEngine(mode);
+  const live = engine.mode === "real";
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [level, setLevel] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Unmount: stop the countdown and abort a running capture (which stops the mic tracks).
+  useEffect(
+    () => () => {
+      if (timer.current) clearInterval(timer.current);
+      abortRef.current?.abort();
+    },
+    [],
+  );
 
   async function start() {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     const t0 = Date.now();
-    setPhase({ kind: "recording", secondsLeft: SECONDS });
-    timer.current = setInterval(() => {
-      const left = Math.max(0, SECONDS - Math.floor((Date.now() - t0) / 1000));
-      setPhase((p) => (p.kind === "recording" ? { kind: "recording", secondsLeft: left } : p));
-    }, 250);
+    setPhase(live ? { kind: "recording", secondsLeft: CAPTURE_SECONDS } : { kind: "analyzing" });
+    if (live) {
+      timer.current = setInterval(() => {
+        const left = Math.max(0, CAPTURE_SECONDS - Math.floor((Date.now() - t0) / 1000));
+        setPhase((p) => (p.kind === "recording" ? { kind: "recording", secondsLeft: left } : p));
+        if (left === 0) setPhase((p) => (p.kind === "recording" ? { kind: "analyzing" } : p));
+      }, 250);
+    }
     try {
-      const rec = await recordClaps(SECONDS, setLevel);
-      if (timer.current) clearInterval(timer.current);
-      setPhase({ kind: "analyzing" });
-      const m = await analyzeRecording(rec.samples, rec.sampleRate, rec.processingWarning);
+      const m = await engine.capture(setLevel, controller.signal);
+      if (controller.signal.aborted) return;
       setPhase({ kind: "done", m });
       onResult(m);
     } catch (e) {
+      if (controller.signal.aborted) return;
+      setPhase({ kind: "error", err: isCoreError(e) ? e : coreError(live ? "mic_unavailable" : "parse_failure") });
+    } finally {
       if (timer.current) clearInterval(timer.current);
-      setPhase({ kind: "error", message: explain(e) });
+      timer.current = null;
     }
   }
 
@@ -57,20 +102,34 @@ export function ClapCapture({ onResult, label = "Start listening" }: { onResult:
       <div className="flex flex-wrap items-center gap-4">
         <Button onClick={start} disabled={busy} size="lg">
           <Mic aria-hidden />
-          {phase.kind === "done" || phase.kind === "error" ? "Listen again" : label}
+          {phase.kind === "done" || phase.kind === "error" ? (live ? "Listen again" : "Load the example again") : label}
         </Button>
         <p className="text-sm" aria-live="polite">
-          {phase.kind === "idle" && "Stand in the middle of the room. Clap sharply three times, about two seconds apart."}
+          {phase.kind === "idle" &&
+            (live
+              ? "Stand in the middle of the room. Clap sharply three times, about two seconds apart."
+              : "Sample mode: the button loads a stored example measurement. The microphone is not used.")}
           {phase.kind === "recording" && `Listening: clap now. ${phase.secondsLeft} s left.`}
-          {phase.kind === "analyzing" && "Splitting into five octave bands and fitting each decay..."}
-          {phase.kind === "done" && `Measured in this browser. Nothing was uploaded.`}
-          {phase.kind === "error" && <span className="text-bad">{phase.message}</span>}
+          {phase.kind === "analyzing" &&
+            (live ? "Splitting into five octave bands and fitting each decay..." : "Loading the stored example measurement...")}
+          {phase.kind === "done" && engine.sourceNote}
         </p>
       </div>
 
       {phase.kind === "recording" && (
         <div className="mt-4 h-3 border border-foreground bg-background" aria-hidden>
           <div className={level > 0.98 ? "h-full bg-bad" : "h-full bg-primary"} style={{ width: `${Math.min(100, level * 100)}%` }} />
+        </div>
+      )}
+
+      {phase.kind === "error" && (
+        <div className="mt-4 space-y-3 border border-bad bg-background p-4" role="alert">
+          <p className="text-sm text-bad">
+            <span className="font-semibold">{errorTitle(phase.err)}</span> {phase.err.hint}
+          </p>
+          <Button variant="outline" size="sm" onClick={start}>
+            <RotateCcw aria-hidden /> Try again
+          </Button>
         </div>
       )}
 
@@ -93,10 +152,11 @@ function QualityReport({ m }: { m: Measurement }) {
       </div>
       {m.processingWarning && (
         <p className="text-sm text-bad">
-          This browser kept its voice processing on (echo cancellation or noise suppression). It can shorten the decay, so
-          read the number as a lower bound.
+          Either this browser kept its voice processing on, or raw capture was not available and a compressed recording was
+          used instead. Both can shorten or smear the decay tail, so read the number as a lower bound.
         </p>
       )}
+      {m.capturePath && <p className="text-xs text-muted-foreground">Capture: {CAPTURE_LABEL[m.capturePath]}.</p>}
       <ul className="space-y-1 text-sm">
         {m.claps.map((c) => (
           <li key={c.index}>
