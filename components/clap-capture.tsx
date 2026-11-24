@@ -7,16 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BAND_LABELS, type Measurement } from "@/lib/acoustics";
 import { CAPTURE_SECONDS } from "@/lib/config";
-import { getEngine } from "@/lib/engine";
+import { getEngine, type MeasureEngine } from "@/lib/engine";
 import { coreError, isCoreError, type CoreError } from "@/lib/errors";
 import type { AdapterMode } from "@/lib/types";
 
 type Phase =
   | { kind: "idle" }
   | { kind: "recording"; secondsLeft: number }
-  | { kind: "analyzing" }
-  | { kind: "done"; m: Measurement }
+  | { kind: "analyzing"; sample: boolean }
+  | { kind: "done"; m: Measurement; note: string }
   | { kind: "error"; err: CoreError };
+
+/** Real-capture failures where the stored sample is a fair way to keep going. */
+const SAMPLE_FALLBACK_CODES = new Set<CoreError["error"]>(["mic_denied", "mic_unavailable", "no_clap"]);
 
 /** A short title per error code. The sentence under it is the error's own hint. */
 function errorTitle(err: CoreError): string {
@@ -68,27 +71,30 @@ export function ClapCapture({
     [],
   );
 
-  async function start() {
+  /** Runs one capture. `use` is the page's engine, or the sample engine when the visitor picks it after a failure. */
+  async function start(use: MeasureEngine = engine) {
     abortRef.current?.abort();
+    if (timer.current) clearInterval(timer.current);
     const controller = new AbortController();
     abortRef.current = controller;
     const t0 = Date.now();
-    setPhase(live ? { kind: "recording", secondsLeft: CAPTURE_SECONDS } : { kind: "analyzing" });
-    if (live) {
+    const isLive = use.mode === "real";
+    setPhase(isLive ? { kind: "recording", secondsLeft: CAPTURE_SECONDS } : { kind: "analyzing", sample: true });
+    if (isLive) {
       timer.current = setInterval(() => {
         const left = Math.max(0, CAPTURE_SECONDS - Math.floor((Date.now() - t0) / 1000));
         setPhase((p) => (p.kind === "recording" ? { kind: "recording", secondsLeft: left } : p));
-        if (left === 0) setPhase((p) => (p.kind === "recording" ? { kind: "analyzing" } : p));
+        if (left === 0) setPhase((p) => (p.kind === "recording" ? { kind: "analyzing", sample: false } : p));
       }, 250);
     }
     try {
-      const m = await engine.capture(setLevel, controller.signal);
+      const m = await use.capture(setLevel, controller.signal);
       if (controller.signal.aborted) return;
-      setPhase({ kind: "done", m });
+      setPhase({ kind: "done", m, note: use.sourceNote });
       onResult(m);
     } catch (e) {
       if (controller.signal.aborted) return;
-      setPhase({ kind: "error", err: isCoreError(e) ? e : coreError(live ? "mic_unavailable" : "parse_failure") });
+      setPhase({ kind: "error", err: isCoreError(e) ? e : coreError(isLive ? "mic_unavailable" : "parse_failure") });
     } finally {
       if (timer.current) clearInterval(timer.current);
       timer.current = null;
@@ -100,7 +106,7 @@ export function ClapCapture({
   return (
     <Card className="decaya-ruled p-5">
       <div className="flex flex-wrap items-center gap-4">
-        <Button onClick={start} disabled={busy} size="lg">
+        <Button onClick={() => start()} disabled={busy} size="lg">
           <Mic aria-hidden />
           {phase.kind === "done" || phase.kind === "error" ? (live ? "Listen again" : "Load the example again") : label}
         </Button>
@@ -111,8 +117,8 @@ export function ClapCapture({
               : "Sample mode: the button loads a stored example measurement. The microphone is not used.")}
           {phase.kind === "recording" && `Listening: clap now. ${phase.secondsLeft} s left.`}
           {phase.kind === "analyzing" &&
-            (live ? "Splitting into five octave bands and fitting each decay..." : "Loading the stored example measurement...")}
-          {phase.kind === "done" && engine.sourceNote}
+            (phase.sample ? "Loading the stored example measurement..." : "Splitting into five octave bands and fitting each decay...")}
+          {phase.kind === "done" && phase.note}
         </p>
       </div>
 
@@ -127,9 +133,19 @@ export function ClapCapture({
           <p className="text-sm text-bad">
             <span className="font-semibold">{errorTitle(phase.err)}</span> {phase.err.hint}
           </p>
-          <Button variant="outline" size="sm" onClick={start}>
-            <RotateCcw aria-hidden /> Try again
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="outline" size="sm" onClick={() => start()}>
+              <RotateCcw aria-hidden /> Try again
+            </Button>
+            {live && SAMPLE_FALLBACK_CODES.has(phase.err.error) && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => start(getEngine("fake"))}>
+                  Use the sample measurement
+                </Button>
+                <span className="decaya-stamp text-muted-foreground">Sample data</span>
+              </>
+            )}
+          </div>
         </div>
       )}
 
