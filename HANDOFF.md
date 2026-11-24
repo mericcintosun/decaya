@@ -191,7 +191,7 @@ None. The agent cannot run commands; the runner installs, builds, tests and comm
 - Met: README "Reset the demo" holds the migration note.
 - Met: no new dependency; new imports resolve to repo files, `react`, `next/image`, `next/link`, `lucide-react`, `zod` or Node built-ins.
 - Met: `tests/store.test.ts` has 6 tests; `tests/core.test.ts` is unchanged.
-- Met: tripwire greps on `app/`, `components/`, `lib/` find hexes only in `app/globals.css`, `app/icon.svg` and `app/opengraph-image.tsx` (Never list, unchanged); no banned keyframe or prop; no em dash, en dash or ` -- ` in the repo; `app/layout.tsx` not touched (one `BrandMark`).
+- Met: tripwire greps on `app/`, `components/`, `lib/` find hexes only in `app/globals.css`, `app/icon.svg` and `app/opengraph-image.tsx` (Never list, unchanged); no banned keyframe or prop; no em dash, en dash or spaced double hyphen in the repo; `app/layout.tsx` not touched (one `BrandMark`).
 
 ### Open questions
 - Unverified until the runner runs it: `npm run build` (including type checks of `tests/` and `scripts/`), `npm test` (11 tests expected), `npm run proof` (the README `store` block holds an honest "Not run" line until then), `npm run demo:reset`.
@@ -204,6 +204,85 @@ None. The agent cannot run commands; the runner installs, builds, tests and comm
 
 ### Next best step
 Phase 4: landing and submission polish, and the README test table with real numbers from the manual checklist (items b and c above).
+
+## Phase 4 log: second wow, responsive pass, landing, security sweep (2026-11-24)
+
+### Goal
+Ship KIT signature 2 (drag the room width on the bench, the predicted bars and the predicted RT60 move live) as DEMO.md step 7; make every demo route work at 360, 768 and 1280 px (nav disclosure, touch targets, long strings, overflow); finish root metadata and empty-state copy; add a landing section on `/`; write DELIVERY.md and SECURITY.md after a security sweep.
+
+### Status
+All six slices written; nothing was cut. Nothing was built or run: the agent cannot run commands, so `npm run build`, `npm test` and `npm run proof` are unverified until the runner runs them. Slice 6 (web sweep) found no defect, so it changed no file and has no entry in `.farm-commits.json`. Each file appears in one commit only: the empty-state copy in `components/room-bench.tsx` rides with commit 2, the one in `components/room-explorer.tsx` with commit 3, and the README "Source:" link with commit 1.
+
+### Decisions
+- **Second wow selection.** All five idea features already ship, so the second wow is KIT signature 2 from the mission. It needs no new seat or provider, it is the most visible on screen per hour, and it costs the fewest hours. `components/room-size-handle.tsx` (new, `"use client"`) is a `motion` handle (`drag="x"`, `useMotionValue`, `useTransform`, `dragConstraints`, `whileHover`, `whileDrag`) that reports a width between 2 and 6 m. `Bench` passes it `dims.width` and writes back through the same `setDims` the number inputs use (`components/room-bench.tsx:238`), so the existing `predictRt60` memo (`components/room-bench.tsx:115`) reruns. No acoustics were written.
+- Physics check by hand (not run): with thick curtain and duvet on the sample measurement in a 4 x 3 x 2.6 m room, widening from 3 m to 5 m moves the predicted mid band from about 0.47 s to about 0.59 s, because the same item area is a smaller share of a bigger room. With nothing added, the prediction equals the measurement at any size; the card says so and asks for an item first.
+- Below `lg` the band card sits above the simulator card, so a copy of `BandBars` (aria-hidden, `lg:hidden`) sits under the handle; on a phone the bars move in view while you drag.
+- The handle renders only after the browser measures its track (`travel > 0`), so the server HTML never places it at a wrong spot; the width boxes and the "Predicted, from your room size" line are always in the server HTML. Keyboard: role `slider`, arrows 0.1 m, PageUp/PageDown 0.5 m, Home/End. Reduced motion drops the hover and drag scale only.
+- **Nav pattern.** `components/nav-links.tsx`: inline `nav` with `hidden md:flex` (line 47); below `md` a "Menu" button with `md:hidden`, `aria-expanded`, `aria-controls`, `min-h-11` (lines 65 to 74) opens a full-width panel (`basis-full`, line 82) with the same three links, `aria-current="page"` and the DEEP fill plus underline. It closes on route change, on link click and on Escape. `AnimatePresence initial={false}` under `MotionConfig reducedMotion="user"`. The header still has one `BrandMark`, inside the brand link (`app/layout.tsx:33`).
+- **Touch targets.** The Button `default` size moved from `h-9` to `h-11` (`components/ui/button.tsx:23`), and `Input`/`Select` from `h-10` to `h-11`. Every demo-path `size="sm"` button became default size or carries `min-h-11`. Long-label buttons (A/B, clap, bento toggles) got `h-auto min-h-11 whitespace-normal` so they wrap instead of overflowing at 360 px.
+- **Fieldbook `<ol>` exception.** Still not wrapped in `overflow-x-auto`, which would clip the signature 1 `layoutId` return animation (comment at `components/room-explorer.tsx:173`). Rows and the filter bar now collapse to one column below `md` instead of `sm` (`:121`, `:184`). The Quick look overlay scrolls (`overflow-y-auto`, `:229`) and the card uses `my-auto` (`:238`) so a tall card starts at the top on a phone.
+- **No-bounty ledger.** `requiredTech` is empty and there are no `sponsor-bounty` rows (expectedValueUsd null), so the bounty integrations front is empty and nothing was dropped. DELIVERY.md has the five placement sections; README states there are no sponsor bounties and has no bounty table row.
+- **Landing.** Server-rendered `Landing` in `app/page.tsx:36`, below the bento (L4 bans a lead paragraph above the grid), no animation, links to `/new` and `/about`.
+- **Metadata.** `metadataBase` is `https://decaya.vercel.app`; `app/opengraph-image.tsx` and `app/icon.svg` were not touched (CLAUDE.md Never list).
+
+### Responsive audit (before the fixes)
+- `/about` (smallest): coefficient table already in `overflow-x-auto` with `min-w-[44rem]`; "Try it on your room" button was `h-9`.
+- `/new`: inputs and selects `h-10`; error and empty states fine; "Try again" and "Use the sample measurement" were `size="sm"` (`h-8`); the clap button had `whitespace-nowrap`.
+- `/rooms/[slug]`: canvas and bars already wrapped; A/B buttons had `whitespace-nowrap` with long labels such as "With Thick curtain and Duvet on the wall (0.47 s)", an overflow at 360 px; Stop was `sm`; save and no-band buttons `h-9`; room name, owner line and notes had no wrapping rule; "All rooms in the fieldbook" link was `sm`.
+- `/`: bento toggles and "Listen to the difference" were `sm`; "Quick look", "Clear rooms measured here", "Clear saved rooms" were `sm`; filter bar and rows went multi-column at `sm` (640 px), tight with `12rem + 12rem` columns; room names had no `title`; the overlay could not scroll a tall card.
+- Nav: three `sm` links wrapped under the brand on a phone; no disclosure.
+- Error and not-found pages render inside the layout shell (`app/layout.tsx:30` to `:39`: the header and `NavLinks` sit outside `{children}`), so the nav stays reachable.
+All of the above are fixed in the files listed below.
+
+### Failed attempts
+None.
+
+### Files changed
+DELIVERY.md (new), SECURITY.md (new), components/room-size-handle.tsx (new), README.md, DEMO.md, HANDOFF.md, components/room-bench.tsx, components/nav-links.tsx, components/room-explorer.tsx, components/home-bento.tsx, components/clap-capture.tsx, components/new-room-form.tsx, components/ui/button.tsx, components/ui/input.tsx, components/ui/select.tsx, app/layout.tsx, app/page.tsx, app/rooms/[slug]/page.tsx, .farm-commits.json (runner only, not committed).
+
+### Commands run
+None, the agent cannot run commands.
+
+### Acceptance ledger, checked by reading files
+Part A
+- Met: `DELIVERY.md` has `## 1st Place` to `## 5th Place`, each `entryMode: automatic`; `watch:` names DEMO.md steps 5 and 7, both present (`DEMO.md` lines 21 and 23).
+- Met: README line "Bounties: No sponsor bounties in this hackathon; one submission enters 1st to 5th Place automatically." under Required tech, no bounty table; nothing dropped (recorded above).
+- Met: DEMO.md step 7 names `/rooms/[slug]`, `app/rooms/[slug]/page.tsx`, `components/room-bench.tsx`, `components/room-size-handle.tsx` and the expected result; steps 1 to 7 are sequential. Marked optional in the 90 s script.
+- Met: the handle imports `motion/react` in a `"use client"` file (`components/room-size-handle.tsx:1`, `:5`), drives `dims` through `setDims` (`components/room-bench.tsx:238`). Empty: `Bench` only renders when `hasBandData` is true, so the handle is hidden on the "No band data" card, whose copy now names claps and the sample measurement (`components/room-bench.tsx:83` to `:91`). Loading: `BenchSkeleton` (`components/room-bench.tsx:64`). Error: `app/rooms/[slug]/error.tsx`. New imports: `react`, `lucide-react` (`MoveHorizontal`, `Menu`, `X`), `motion/react`, repo files only.
+- Met: `components/nav-links.tsx:47` (`hidden ... md:flex`), `:67` (`md:hidden`), links at `:12` to `:14`. Error and not-found render inside the shell (see audit).
+- Met: canvas, bars, `/about` table and the new handle track (`components/room-size-handle.tsx:108`) sit in `overflow-x-auto`; the fieldbook `<ol>` exception is documented at `components/room-explorer.tsx:173`. The widest fixed width outside a scroll wrapper is `min-w-[18rem]` (288 px) in `components/band-bars.tsx:27` and the canvas, both inside `overflow-x-auto`.
+- Met: demo-path buttons carry `h-11` (default and `lg` sizes) or `min-h-11` (grep `size="sm"` now finds only `app/rooms/[slug]/page.tsx:27`, which also carries `min-h-11`). Room names carry `break-words` plus `title` (`components/room-bench.tsx:84`, `:170`; `components/room-explorer.tsx:189` to `:190`, `:264`); the truncated owner line has a `title` (`:196`).
+- Met: landing in `app/page.tsx:36` to `:63`, `href="/new"` at `:56`; home hrefs: `/new`, `/about`, `/rooms/${slug}` (bento and rows), all with route files.
+- Met: `app/layout.tsx:18` `metadataBase`, `:19` template `%s | Decaya`, `:14` description (132 characters), `:22` `openGraph`, `:23` `twitter.card = "summary_large_image"`. `app/opengraph-image.tsx` and `app/icon.svg` exist.
+- Met: empty states say what appears and how: explorer (`components/room-explorer.tsx:166` to `:167`), bench no band data (`components/room-bench.tsx:88` to `:90`), `/new` before the first clap (`components/new-room-form.tsx:190`).
+- Met: no `console.` in `app/` or `components/` (grep); `lib/` logs unchanged with `LOG_PREFIX` and no payload. No `useSearchParams` anywhere (the explorer reads `searchParams` on the server and writes with `history.replaceState`). No `fs` or `writeFile` in `app/` or `lib/`. Env reads: `ADAPTER_MODE` (`lib/adapter.ts:88`) and `NEXT_PUBLIC_BRAND_FILES` (`lib/brand-files.ts:2`), both in `.env.example`. `.farm-live.json` not touched.
+
+Part B
+- Met: contract front skipped: Glob `contracts/**` finds nothing; Decaya runs in the browser and has no `contracts/` directory.
+- Met: wallet front vacuous: grep `eth_requestAccounts|eth_sign|personal_sign|wallet_|ethereum|window\.ethereum|connect\(` over `app components lib` finds only Web Audio `connect(`/`disconnect(` calls (`components/room-bench.tsx`, `components/room-size-handle.tsx` ResizeObserver `disconnect`, `lib/acoustics.ts`). No wallet code.
+- Met: `SECURITY.md` has the four sections plus data handling; its repo link `https://github.com/mericcintosun/decaya` matches the new README "Source:" line.
+- Met: Part B added no route, dependency or feature module.
+
+### Part B grep results
+1. Keys: `sk-|PRIVATE_KEY|API_KEY|SECRET|[A-Fa-f0-9]{64}` over `app components lib public`: no matches. `NEXT_PUBLIC_BRAND_FILES` is a public list of image names (`next.config.ts:17`).
+2. External links: `target="_blank"` over `app components lib`: no matches, so no `rel` fix needed.
+3. Mixed content: `http://` over `app components lib`: one hit, `app/icon.svg:1`, the SVG `xmlns` namespace, never fetched. `metadataBase` is https.
+4. Forms and third parties: `<form|action=|<script|next/script|gtag|googletagmanager|analytics|plausible|posthog|segment|sentry` (case-insensitive): no form, script or tracker hit (only unrelated words in `app/new/loading.tsx` and a seed comment). `fetch(|sendBeacon|XMLHttpRequest|WebSocket|EventSource`: one hit, the same-origin dry clip fetch in `lib/acoustics.ts:662`. Route handlers export `GET` only; no `cookies(` or `document.cookie`.
+5. Guardrails: no `useSearchParams`; no `writeFile` or `fs.` in `app/`, `components/`, `lib/` (`next.config.ts` reads `public/brand` at build time, as before); every `process.env` key is in `.env.example`.
+Result: clean, no finding, so no fix and no severity entry.
+
+### Note for the builder's demo video
+No wallet exists here, so no wallet warning is expected on screen.
+
+### Open questions
+- Unverified until the runner runs it: `npm run build` type-checking the new `RoomSizeHandle` (motion 14 `drag` props on `motion.div`, `useReducedMotion`, `MoveHorizontal` in `lucide-react ^0.474`), `npm test` (11 expected), `npm run proof`.
+- Unverified on devices: the drag on iOS Safari and Android Chrome (`touch-none` on the handle stops page scroll while dragging), the menu at 360 px, and no horizontal page scroll at 360, 768 and 1280 px. The 0.47 s to 0.59 s figures in DEMO step 7 are hand-computed.
+- With JavaScript off, a phone sees the "Menu" button but cannot open it (the inline links are `hidden` below `md`). The bento CTA, the landing links and the fieldbook rows still reach every route.
+- The new Button default height (`h-11`) makes buttons on `/about`, not-found and error pages taller; Phase 5 may want to retune spacing around them.
+- Still open from earlier phases (human): the CC0 clip at `public/audio/dry-speech.wav`, the iOS and Android mic test, the README test table with real numbers, team roles, `fixtures/seed.json` committed, the wow rehearsed twice, and the DELIVERY.md "Before submitting" list.
+
+### Next best step
+Phase 5, the frontend pass: redeploy to https://decaya.vercel.app, take screenshots at 360, 768 and 1280 px of every demo route (including the open menu and step 7 mid-drag), read them, and fix what they show. Signature 3 (AnimatePresence staging in `ClapCapture`) is still to build.
 
 ---
 
