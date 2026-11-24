@@ -284,6 +284,67 @@ No wallet exists here, so no wallet warning is expected on screen.
 ### Next best step
 Phase 5, the frontend pass: redeploy to https://decaya.vercel.app, take screenshots at 360, 768 and 1280 px of every demo route (including the open menu and step 7 mid-drag), read them, and fix what they show. Signature 3 (AnimatePresence staging in `ClapCapture`) is still to build.
 
+## Phase 5 log: frontend pass and submission package (2026-11-24)
+
+### Goal
+Fix what the eight BEFORE screenshots show, conform the shell to IDENTITY (D6, S5, L4, M6, K1), place six scene slots, ship signatures 2 and 3 on the first screen and on `/new`, and write the submission package (README.md, SUBMISSION.md, docs/SCREENSHOTS.md, LICENSE).
+
+### Status
+All three parts were written and nothing was cut. Nothing was built or run: the agent cannot run commands, so `npm run build`, `npm test` and `npm run proof` are unverified until the runner runs them. The screenshots predate the Phase 4 deploy (the phone header still shows inline links instead of the "Menu" button), so the mobile nav item was checked against code, not a new screenshot.
+
+### Decisions
+- **Body font gaps.** The screenshots show gaps inside words ("T hick curt ain", "List en t o"). `Source_Sans_3` now asks for weights 400, 600 and 700 (`app/layout.tsx:11` to `:16`), so Google serves static files instead of the variable one, and the Button lost `tracking-wide` (`components/ui/button.tsx:9`). This is the likeliest cause, but unverified until a new screenshot.
+- **Bento (L4).** Six cells, unequal: live cell 7 cols x 2 rows, image 5, CTA 3, clap stamp 2, speech window 4, duvet vs foam 8. The claim in the live cell is now the product one-liner (h1 in two spans, `components/home-bento.tsx:63` to `:68`). The muted lead paragraph became one line naming the illustrative room. The CTA cell lists the three steps of DEMO step 2. The speech window cell is a 0 to 1.8 s scale with one tick per seeded room (`midRt60`). The duvet vs foam cell is two bars from `averageCut` with the item areas from the furnishing catalog. No fabricated number: every value comes from `lib/data/seed.ts` through the adapter, or from `predictRt60`.
+- **Signature 2 on the first screen.** The live cell reuses `RoomSizeHandle` (no second drag implementation) plus a "Width in meters" box (`id="bento-width"`); both write one `dims` state, which feeds `predictRt60(featured.measured, dims, items)`. Arrow keys, PageUp/PageDown, Home/End and the box are the alternatives to dragging. With nothing pressed, the prediction equals the measurement at any width, so the line under the handle says to add an item first; the room size and volume always update.
+- **Hover expand.** The clap stamp cell is a `motion.div` with `layout`, `whileHover` and `whileFocus` (scale 1.04) and reveals one extra line through `AnimatePresence initial={false}`. The outer grid cell keeps the CSS drop entrance, because a CSS animation with `fill-mode: both` would override motion's inline transform on the same element.
+- **Signature 3.** `components/clap-capture.tsx`: the status line swaps inside a live region that stays mounted; the meter, an "analyzing" band row, the error card and the quality report swap in one `AnimatePresence mode="wait" initial={false}` with M6-shaped enter variants and a short exit. Per-clap rows stagger through `LIST`/`ROW` variants. All under `MotionConfig reducedMotion="user"`. Idle renders at full opacity in server HTML.
+- **Signature 1.** Unchanged in `components/room-explorer.tsx`. The link from the Quick look card into the `/rooms/[slug]` hero was not added: a `layoutId` does not survive a route change in the App Router without a persistent layout wrapper, which was not cheap.
+- **Fieldbook rows.** The punched hole (`decaya-specimen`) is off the list rows, because on screen it read as a radio button; specimen tags, the live cell and Quick look keep it. Owner lines wrap on phones and truncate only from `md`. "Clear" renders only when a filter is on.
+- **Nav.** Four links now: Rooms, Example bench (the first adapter room, href built in the now async `app/layout.tsx`), Measure a room, Method. "Rooms" is active only on `/`; "Example bench" on any `/rooms/*` page.
+- **Footer.** One sentence plus links to the repository and the hackathon. The hackathon URL `https://peninsula-innovation-hackathon.devpost.com/` was inferred from the event name; check that it resolves.
+- **Scene slots (all six are SVG fallbacks, `public/brand/` is empty).** 1 `/` bento image cell (existing SVG), 2 `/rooms/[slug]` "Why the A/B is fair" (existing), 3 `/about` opening (existing), 4 `/new` capture step (new, square, hidden below `md`), 5 `/` empty search state inside `EmptyState` (new, wide), 6 `/about` closing (new). The spec suggested scene-4 for the room page; the existing scene-2 already shows the result there, and the existing SVGs were not edited (CLAUDE.md Never list), so the numbers follow what each drawing shows.
+- **Simplification.** `/about` steps cut to one sentence each, the coefficient table folded in a `<details>` with a one-line summary, the closing card became scene-6 plus "Listen before you buy". `/new` intro is one sentence. The landing section under the bento is two sentences and one outline link, so the bento "Measure your room" is the one primary CTA. The `decaya-ruled` background was removed from text cards where the rules crossed text (bento speech window, `EmptyState`, `ClapCapture`); skeletons keep it.
+- **Submission package.** README rewritten in the required order with a mermaid diagram of the real modules, PROOF blocks kept byte for byte, and an honest "cross-check not done" line. SUBMISSION.md follows the Devpost field order and leaves out the media field. LICENSE (MIT, "The Decaya authors") added because none existed. `public/audio/dry-speech.wav` does not exist (Glob), so the credits name the formant synth only.
+- IDENTITY.md not touched; no Amendment was needed.
+
+### Failed attempts
+None.
+
+### Files changed
+.farm-delta.md (new, runner bookkeeping), SUBMISSION.md (new), LICENSE (new), docs/SCREENSHOTS.md (new), public/illustrations/scene-4.svg (new), public/illustrations/scene-5.svg (new), public/illustrations/scene-6.svg (new), app/layout.tsx, app/globals.css, app/page.tsx, app/new/page.tsx, app/about/page.tsx, app/rooms/[slug]/page.tsx, components/home-bento.tsx, components/clap-capture.tsx, components/room-explorer.tsx, components/nav-links.tsx, components/band-bars.tsx, components/states.tsx, components/new-room-form.tsx, components/ui/button.tsx, README.md, DEMO.md, HANDOFF.md, .farm-commits.json (runner only).
+
+### Commands run
+None, the agent cannot run commands.
+
+### Acceptance gate, checked by reading files and running Grep
+- Met: `.farm-delta.md` has 11 Diagnosis items, 23 Changes rows (14 A, 9 B), one Kept row; every proof-gone has 0 matches and every proof-new at least 1 (counts recorded there).
+- Met: dead-string grep 0; raw hex only in `app/globals.css` (11 IDENTITY values), `app/icon.svg`, `app/opengraph-image.tsx`; one keyframe, `decaya-drop`; banned props 0.
+- Met: `app/layout.tsx:3` imports `Fraunces` and `Source_Sans_3` from `next/font/google`; the header brand link holds `<BrandMark />` plus "Decaya" only.
+- Met: no bare `<button`, `<input`, `<select` outside `components/ui/`.
+- Met: six `<SceneSlot n={N}` tags with literal n, alt, width, height (1 to 6), six SVG files, no comments in any SVG.
+- Met: `package.json` keeps `"motion": "^14.14.0"`; six files import `motion/react`, all start with `"use client"`.
+- Met: README.md, SUBMISSION.md, docs/ have 0 hits for the banned strings, "video", "pending", dashes and the banned vocabulary.
+- Unverified (runner): the build, the 11 tests, the proof rewrite, and that `layout` plus `whileHover` on the stamp cell and the `as const` ease tuple in `components/clap-capture.tsx` type-check under motion 14.
+
+### Open questions
+- Does the font change remove the letter gaps? Needs a new screenshot after the deploy.
+- Is the hackathon URL in the footer and SUBMISSION-adjacent text correct (`app/layout.tsx`, `HACKATHON_URL`)?
+- `app/layout.tsx` is now `async` and calls `getAdapter().listRooms()` on every request for the nav link. Cheap (seed data in memory), but if the build complains about the layout reading the adapter, hard-code nothing: drop the `benchHref` prop and the nav falls back to three links.
+- Signature 1 does not continue into the `/rooms/[slug]` hero (see Decisions).
+
+### Next best step
+Phases 6 and 7: redeploy, take the AFTER screenshots at 360, 768 and 1280 px, compare them with the BEFORE shots defect by defect, apply the judge rounds, then freeze and tag.
+
+### Manual submit checklist
+- [ ] Confirm every team member is a student (eligibility).
+- [ ] Fill in the team member names on the Devpost team page.
+- [ ] Add a CC0 dry speech clip at `public/audio/dry-speech.wav` and its credit line in README "Credits" and SUBMISSION.md.
+- [ ] Run the iOS Safari and Android Chrome checks on https://decaya.vercel.app (mic prompt, drag on the bento and the bench, no sideways scroll at 360 px).
+- [ ] Fill the README room test table with real numbers, including the cross-check of 3 rooms against an iOS clap app.
+- [ ] Rehearse the wow moment (DEMO step 5) twice on the recording device.
+- [ ] Record the demo video and paste its link straight into the Devpost form.
+- [ ] Confirm the submission deadline: 10 December 2026, 17:00 EST.
+
 ---
 
 You are picking up a working Next.js 15 scaffold. Read this file, then `IDENTITY.md`, then start on the Mission list. Keep `npm run build` passing after every change.
@@ -352,8 +413,8 @@ Mocked or stand-in:
 ### Interaction kit (K1 motion)
 
 - Shipped: **signature 1, shared-layout transition.** On `/`, "Quick look" on a fieldbook row grows that row into the expanded specimen card via `layoutId={`room-${slug}`}` (`components/room-explorer.tsx`), driven by the seeded room, with its band bars and cheapest fix plan.
-- To build: **signature 2**, a draggable or pointer-tracked artifact bound to a real value (suggested: drag a handle on the room's height or the curtain width in the bento, `useMotionValue` + `useTransform`, and the predicted RT60 on screen updates as you drag).
-- To build: **signature 3**, `AnimatePresence` staging on `/new` and in `ClapCapture`: idle, listening, analyzing, result and error swap with exit animations; the per-clap report rows stagger in through `variants`.
+- Shipped (Phases 4 and 5): **signature 2**, the draggable room width (`components/room-size-handle.tsx`) on the bench and in the bento live cell; the predicted bars move through `predictRt60`.
+- Shipped (Phase 5): **signature 3**, `AnimatePresence` staging in `components/clap-capture.tsx` with per-clap rows staggered through `variants`.
 
 ### One-mark proof (header in `app/layout.tsx`)
 
