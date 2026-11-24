@@ -9,7 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { midRt60, type Measurement } from "@/lib/acoustics";
-import { ROOM_TYPES, ROOM_USES, saveLocalRoom, slugify, type Room, type RoomType, type RoomUse } from "@/lib/data";
+import { ROOM_TYPES, ROOM_USES, saveLocalRoom, slugify } from "@/lib/data";
+import type { Room, RoomType, RoomUse } from "@/lib/types";
 
 /** Name the room, clap, save. The room lands at the top of the fieldbook on this device. */
 export function NewRoomForm() {
@@ -134,7 +135,7 @@ export function NewRoomForm() {
             Save to the fieldbook
           </Button>
           {error && <p className="text-sm text-bad">{error}</p>}
-          {!m && !error && <p className="text-sm text-muted-foreground">Saving unlocks after a measurement.</p>}
+          {!m && !error && <p className="text-sm text-muted-foreground">You can save once the room is measured.</p>}
         </div>
       </div>
     </div>

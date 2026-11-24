@@ -8,23 +8,27 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { joinNames, midRt60, predictRt60, SPEECH_TARGET, VERDICT_LABEL, verdictFor } from "@/lib/acoustics";
-import { averageCut, furnishings, rooms, type Room } from "@/lib/data";
+import { averageCut } from "@/lib/data";
+import type { Furnishing, Room } from "@/lib/types";
 
 const PREVIEW_ITEMS = ["heavy-curtain", "duvet-wall", "area-rug", "foam-panels"];
 
 /** The home composition (ARCHETYPE L4): six unequal cells, no hero paragraph above. */
-export function HomeBento({ featured }: { featured: Room }) {
+export function HomeBento({ featured, rooms, furnishings }: { featured: Room; rooms: Room[]; furnishings: Furnishing[] }) {
   const [picked, setPicked] = useState<string[]>([]);
-  const items = furnishings.filter((f) => picked.includes(f.id));
+  const items = useMemo(() => furnishings.filter((f) => picked.includes(f.id)), [furnishings, picked]);
   const predicted = useMemo(() => predictRt60(featured.measured, featured.dims, items), [featured, items]);
   const before = midRt60(featured.measured);
   const after = midRt60(predicted);
   const verdict = verdictFor(items.length ? after : before);
   const cost = items.reduce((s, i) => s + i.costUsd, 0);
+  const previewItems = PREVIEW_ITEMS.map((id) => furnishings.find((x) => x.id === id)).filter(
+    (f): f is Furnishing => Boolean(f),
+  );
 
   const missing = rooms.filter((r) => verdictFor(midRt60(r.measured)) !== "speech-ready").length;
-  const duvetCut = Math.round(averageCut("duvet-wall") * 100);
-  const foamCut = Math.round(averageCut("foam-panels") * 100);
+  const duvetCut = Math.round(averageCut("duvet-wall", rooms, furnishings) * 100);
+  const foamCut = Math.round(averageCut("foam-panels", rooms, furnishings) * 100);
 
   return (
     <section aria-label="Decaya at a glance" className="decaya-drop-in grid gap-4 lg:auto-rows-[minmax(13rem,auto)] lg:grid-cols-12">
@@ -34,20 +38,19 @@ export function HomeBento({ featured }: { featured: Room }) {
           Clap once. Hear your room fixed before you buy a thing.
         </h1>
         <p className="mt-3 max-w-[62ch] text-muted-foreground">
-          {featured.owner} clapped three times in {featured.name}. Pick what you would add and watch the decay drop,
-          band by band.
+          An example from the fieldbook: {featured.name}, with illustrative values. Pick what you would add and watch the
+          predicted decay drop, band by band.
         </p>
         <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Items to add">
-          {PREVIEW_ITEMS.map((id) => {
-            const f = furnishings.find((x) => x.id === id)!;
-            const on = picked.includes(id);
+          {previewItems.map((f) => {
+            const on = picked.includes(f.id);
             return (
               <Button
-                key={id}
+                key={f.id}
                 variant="outline"
                 size="sm"
                 aria-pressed={on}
-                onClick={() => setPicked((p) => (on ? p.filter((x) => x !== id) : [...p, id]))}
+                onClick={() => setPicked((p) => (on ? p.filter((x) => x !== f.id) : [...p, f.id]))}
               >
                 {f.name} {f.costUsd === 0 ? "(free)" : `$${f.costUsd}`}
               </Button>
@@ -62,7 +65,7 @@ export function HomeBento({ featured }: { featured: Room }) {
           <p className="text-sm">
             {items.length === 0
               ? `Mid-band decay is ${before.toFixed(2)} s. Speech stays clear under ${SPEECH_TARGET.max} s.`
-              : `${before.toFixed(2)} s now, ${after.toFixed(2)} s with ${joinNames(items)}, for $${cost}.`}
+              : `${before.toFixed(2)} s now, predicted ${after.toFixed(2)} s with ${joinNames(items)}, for $${cost}.`}
           </p>
           <Button asChild variant="link" size="sm" className="ml-auto">
             <Link href={`/rooms/${featured.slug}`}>Listen to the difference</Link>

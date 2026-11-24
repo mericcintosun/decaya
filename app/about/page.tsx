@@ -4,7 +4,7 @@ import { SceneSlot } from "@/components/scene-slot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BAND_LABELS } from "@/lib/acoustics";
-import { furnishings } from "@/lib/data";
+import { getAdapter } from "@/lib/adapter";
 
 export const metadata: Metadata = { title: "Method" };
 
@@ -35,7 +35,8 @@ const STEPS = [
   },
 ];
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const furnishings = await getAdapter().listFurnishings();
   return (
     <div className="space-y-12">
       <section className="grid items-start gap-8 lg:grid-cols-[1.2fr_1fr]">
@@ -87,7 +88,8 @@ export default function AboutPage() {
           Coefficients from 0 (reflects everything) to 1 (absorbs everything). Duvet, bookshelf and bean bag are our estimates
           and are labelled that way. Prices are what a student actually pays: free for things you own.
         </p>
-        <Card className="mt-5 overflow-x-auto">
+        <Card className="mt-5">
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[44rem] text-left text-sm">
             <thead className="border-b border-foreground">
               <tr>
@@ -118,6 +120,7 @@ export default function AboutPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       </section>
 

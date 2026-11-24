@@ -10,7 +10,8 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { joinNames, midRt60, VERDICT_LABEL, verdictFor, type Verdict } from "@/lib/acoustics";
-import { fixFor, loadLocalRooms, ROOM_TYPES, ROOM_USES, type Room } from "@/lib/data";
+import { fixFor, loadLocalRooms, ROOM_TYPES, ROOM_USES } from "@/lib/data";
+import type { Furnishing, Room } from "@/lib/types";
 
 const VERDICT_BADGE: Record<Verdict, "ok" | "warn" | "bad"> = {
   "too-live": "bad",
@@ -29,11 +30,13 @@ const useLabel = (u: Room["use"]) => ROOM_USES.find((x) => x.value === u)?.label
  */
 export function RoomExplorer({
   seedRooms,
+  furnishings,
   initialQuery,
   initialType,
   initialVerdict,
 }: {
   seedRooms: Room[];
+  furnishings: Furnishing[];
   initialQuery: string;
   initialType: string;
   initialVerdict: string;
@@ -127,19 +130,22 @@ export function RoomExplorer({
 
         <LayoutGroup>
           {shown.length === 0 ? (
-            <Card className="decaya-ruled mt-6 p-8 text-center">
-              <p className="font-display text-xl">No room in the fieldbook matches that.</p>
+            <Card className="decaya-specimen decaya-ruled mt-6 p-8 text-center">
+              <span className="decaya-stamp text-muted-foreground">No specimen</span>
+              <p className="mt-3 font-display text-xl">No room in the fieldbook matches that.</p>
               <p className="mt-2 text-sm text-muted-foreground">Clear the filters, or measure the room you are sitting in.</p>
               <Button asChild variant="outline" className="mt-4">
                 <Link href="/new">Add a room</Link>
               </Button>
             </Card>
           ) : (
-            <ol className="mt-6 space-y-3">
+            // No overflow-x-auto wrapper here on purpose: it would clip the layoutId
+            // return animation (signature 1). Rows collapse to one column below sm.
+            <ol className="mt-6 min-w-0 space-y-3">
               {shown.map((room, idx) => {
                 const mid = midRt60(room.measured);
                 const v = verdictFor(mid);
-                const fix = fixFor(room);
+                const fix = fixFor(room, furnishings);
                 return (
                   <li key={room.slug} className="min-h-[5.5rem]">
                     {open !== room.slug && (
@@ -196,7 +202,7 @@ export function RoomExplorer({
                   aria-modal="true"
                   aria-label={openRoom.name}
                 >
-                  <QuickLook room={openRoom} onClose={() => setOpen(null)} />
+                  <QuickLook room={openRoom} furnishings={furnishings} onClose={() => setOpen(null)} />
                 </motion.div>
               </motion.div>
             )}
@@ -207,8 +213,8 @@ export function RoomExplorer({
   );
 }
 
-function QuickLook({ room, onClose }: { room: Room; onClose: () => void }) {
-  const fix = fixFor(room);
+function QuickLook({ room, furnishings, onClose }: { room: Room; furnishings: Furnishing[]; onClose: () => void }) {
+  const fix = fixFor(room, furnishings);
   const before = midRt60(room.measured);
   const after = midRt60(fix.predicted);
   const v = verdictFor(before);

@@ -24,7 +24,17 @@ import {
   type Measurement,
   type RoomDims,
 } from "@/lib/acoustics";
-import { fixFor, loadLocalRooms, saveLocalRoom, type Room } from "@/lib/data";
+import { fixFor, loadLocalRooms, saveLocalRoom } from "@/lib/data";
+import type { Room } from "@/lib/types";
+
+/** True when the room carries five finite, positive band decay times. */
+function hasBandData(room: Room): boolean {
+  return (
+    Array.isArray(room.measured) &&
+    room.measured.length === 5 &&
+    room.measured.every((v) => typeof v === "number" && Number.isFinite(v) && v > 0)
+  );
+}
 
 /** Detail page body. Seeded rooms arrive from the server; rooms measured here load from localStorage. */
 export function RoomBench({ slug, seedRoom, furnishings }: { slug: string; seedRoom: Room | null; furnishings: Furnishing[] }) {
@@ -62,13 +72,33 @@ export function RoomBench({ slug, seedRoom, furnishings }: { slug: string; seedR
       </Card>
     );
   }
+  if (!hasBandData(room)) {
+    return (
+      <Card className="decaya-specimen decaya-ruled p-8">
+        <span className="decaya-stamp text-warn">No band data</span>
+        <h1 className="mt-3 text-3xl font-semibold">{room.name} has no decay numbers yet</h1>
+        <p className="mt-2 max-w-[60ch] text-muted-foreground">
+          The bench needs five band decay times to draw the curve, predict a fix and play the before and after. Measure the
+          room with three claps to fill them in.
+        </p>
+        <div className="mt-4 flex gap-3">
+          <Button asChild>
+            <Link href="/new">Measure a room</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/">Browse the fieldbook</Link>
+          </Button>
+        </div>
+      </Card>
+    );
+  }
   return <Bench room={room} furnishings={furnishings} />;
 }
 
 function Bench({ room, furnishings }: { room: Room; furnishings: Furnishing[] }) {
   const [measured, setMeasured] = useState<BandValues>(room.measured);
   const [dims, setDims] = useState<RoomDims>(room.dims);
-  const [picked, setPicked] = useState<string[]>(() => fixFor(room).items.map((i) => i.id));
+  const [picked, setPicked] = useState<string[]>(() => fixFor(room, furnishings).items.map((i) => i.id));
   const [liveCurve, setLiveCurve] = useState<{ db: number[]; step: number } | null>(null);
   const [claps, setClaps] = useState(room.claps);
   const [dr, setDr] = useState(room.dynamicRangeDb);
@@ -99,7 +129,8 @@ function Bench({ room, furnishings }: { room: Room; furnishings: Furnishing[] })
           <div>
             <h1 className="text-4xl font-semibold leading-tight">{room.name}</h1>
             <p className="mt-1 text-muted-foreground">
-              {room.owner}, {room.city} · measured {room.measuredOn}
+              {room.owner}, {room.city} ·{" "}
+              {room.source === "fieldbook" ? `illustrative example values, dated ${room.measuredOn}` : `measured ${room.measuredOn}`}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -396,11 +427,13 @@ function DecayCurve({
   }, [measured, predicted, floorDb, liveCurve, width]);
 
   return (
-    <canvas
-      ref={ref}
-      className="h-56 w-full border border-border bg-background"
-      role="img"
-      aria-label={`Decay curve. Mid-band decay ${midRt60(measured).toFixed(2)} seconds${predicted ? `, predicted ${midRt60(predicted).toFixed(2)} seconds` : ""}.`}
-    />
+    <div className="overflow-x-auto">
+      <canvas
+        ref={ref}
+        className="h-56 w-full min-w-[18rem] border border-border bg-background"
+        role="img"
+        aria-label={`Decay curve. Mid-band decay ${midRt60(measured).toFixed(2)} seconds${predicted ? `, predicted ${midRt60(predicted).toFixed(2)} seconds` : ""}.`}
+      />
+    </div>
   );
 }

@@ -3,23 +3,25 @@ import Link from "next/link";
 import { RoomBench } from "@/components/room-bench";
 import { SceneSlot } from "@/components/scene-slot";
 import { Button } from "@/components/ui/button";
-import { furnishings, getRoom, rooms } from "@/lib/data";
+import { getAdapter } from "@/lib/adapter";
 
 type Params = Promise<{ slug: string }>;
 
-export function generateStaticParams() {
+export async function generateStaticParams() {
+  const rooms = await getAdapter().listRooms();
   return rooms.map((r) => ({ slug: r.slug }));
 }
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
-  const room = getRoom(slug);
+  const room = await getAdapter().getRoom(slug);
   return { title: room ? room.name : "Your room" };
 }
 
 export default async function RoomPage({ params }: { params: Params }) {
   const { slug } = await params;
-  const room = getRoom(slug) ?? null;
+  const adapter = getAdapter();
+  const [room, furnishings] = await Promise.all([adapter.getRoom(slug), adapter.listFurnishings()]);
   return (
     <div className="space-y-8">
       <Button asChild variant="link" size="sm">
