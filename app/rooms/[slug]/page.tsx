@@ -24,7 +24,7 @@ export default async function RoomPage({ params }: { params: Params }) {
   const [room, furnishings] = await Promise.all([adapter.getRoom(slug), adapter.listFurnishings()]);
   return (
     <div className="space-y-8">
-      <Button asChild variant="link" size="sm">
+      <Button asChild variant="link" size="sm" className="min-h-11">
         <Link href="/">All rooms in the fieldbook</Link>
       </Button>
       <RoomBench slug={slug} seedRoom={room} furnishings={furnishings} mode={adapter.mode} />

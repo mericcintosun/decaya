@@ -100,7 +100,7 @@ export function RoomExplorer({
           <div className="mt-4 flex flex-wrap items-center gap-3 border border-warn bg-background p-3 text-sm" role="status">
             <span className="decaya-stamp text-warn">Not readable</span>
             <span>Your saved rooms could not be read, showing the examples.</span>
-            <Button variant="outline" size="sm" onClick={() => clearRooms()}>
+            <Button variant="outline" onClick={() => clearRooms()}>
               Clear saved rooms
             </Button>
           </div>
@@ -108,7 +108,7 @@ export function RoomExplorer({
 
         {localRooms.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-            <Button variant="outline" size="sm" onClick={() => clearRooms()}>
+            <Button variant="outline" onClick={() => clearRooms()}>
               Clear rooms measured here
             </Button>
             <span className="text-muted-foreground">
@@ -118,7 +118,7 @@ export function RoomExplorer({
           </div>
         )}
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_12rem_12rem_auto]">
+        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_12rem_12rem_auto]">
           <Input
             type="search"
             value={q}
@@ -163,15 +163,15 @@ export function RoomExplorer({
               title={filtered ? "No room in the fieldbook matches that." : "The fieldbook is empty."}
               body={
                 filtered
-                  ? "Clear the filters, or measure the room you are sitting in."
-                  : "Measure the room you are sitting in and it becomes the first entry."
+                  ? "Rooms that match your search and filters show up here with their mid-band decay. Press Clear above to see every room, or measure the room you are sitting in to add it."
+                  : "Rooms show up here with their mid-band decay and the cheapest fix. Measure the room you are sitting in with three claps and it becomes the first entry."
               }
               ctaHref="/new"
               ctaLabel="Add a room"
             />
           ) : (
             // No overflow-x-auto wrapper here on purpose: it would clip the layoutId
-            // return animation (signature 1). Rows collapse to one column below sm.
+            // return animation (signature 1). Rows collapse to one column below md.
             <ol className="mt-6 min-w-0 space-y-3">
               {shown.map((room, idx) => {
                 const mid = midRt60(room.measured);
@@ -181,13 +181,20 @@ export function RoomExplorer({
                   <li key={room.slug} className="min-h-[5.5rem]">
                     {open !== room.slug && (
                       <motion.div layoutId={`room-${room.slug}`} transition={{ type: "spring", stiffness: 260, damping: 30 }}>
-                        <Card className="decaya-specimen grid items-center gap-4 p-4 pr-10 sm:grid-cols-[4rem_1fr_7rem_9rem_auto]">
+                        <Card className="decaya-specimen grid items-center gap-4 p-4 pr-10 md:grid-cols-[4rem_1fr_7rem_9rem_auto]">
                           <span className="font-display text-sm text-muted-foreground">No. {String(idx + 1).padStart(2, "0")}</span>
                           <div className="min-w-0">
-                            <Link href={`/rooms/${room.slug}`} className="font-display text-lg font-semibold hover:underline">
+                            <Link
+                              href={`/rooms/${room.slug}`}
+                              title={room.name}
+                              className="block min-h-11 break-words py-2 font-display text-lg font-semibold hover:underline"
+                            >
                               {room.name}
                             </Link>
-                            <p className="truncate text-sm text-muted-foreground">
+                            <p
+                              className="truncate text-sm text-muted-foreground"
+                              title={`${room.owner}, ${room.city} · ${typeLabel(room.type)} · ${useLabel(room.use)}`}
+                            >
                               {room.owner}, {room.city} · {typeLabel(room.type)} · {useLabel(room.use)}
                               {room.source === "local" && " · measured in this browser"}
                             </p>
@@ -202,7 +209,7 @@ export function RoomExplorer({
                               {fix.items.length === 0 ? "Leave it as is" : `Fix: ${joinNames(fix.items)}`}
                             </p>
                           </div>
-                          <Button variant="outline" size="sm" onClick={() => setOpen(room.slug)}>
+                          <Button variant="outline" onClick={() => setOpen(room.slug)}>
                             Quick look
                           </Button>
                         </Card>
@@ -214,11 +221,12 @@ export function RoomExplorer({
             </ol>
           )}
 
+          {/* The overlay scrolls; my-auto on the card centers it but lets a tall card start at the top on a phone. */}
           <AnimatePresence>
             {openRoom && (
               <motion.div
                 key="overlay"
-                className="fixed inset-0 z-50 grid place-items-center bg-foreground/40 p-4"
+                className="fixed inset-0 z-50 grid justify-items-center overflow-y-auto bg-foreground/40 p-4"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -227,7 +235,7 @@ export function RoomExplorer({
                 <motion.div
                   layoutId={`room-${openRoom.slug}`}
                   transition={{ type: "spring", stiffness: 260, damping: 30 }}
-                  className="w-full max-w-2xl"
+                  className="my-auto w-full max-w-2xl"
                   onClick={(e) => e.stopPropagation()}
                   role="dialog"
                   aria-modal="true"
@@ -252,9 +260,11 @@ function QuickLook({ room, furnishings, onClose }: { room: Room; furnishings: Fu
   return (
     <Card className="decaya-specimen bg-background p-6">
       <div className="flex flex-wrap items-start justify-between gap-3 pr-6">
-        <div>
-          <h3 className="font-display text-2xl font-semibold">{room.name}</h3>
-          <p className="text-sm text-muted-foreground">
+        <div className="min-w-0">
+          <h3 className="break-words font-display text-2xl font-semibold" title={room.name}>
+            {room.name}
+          </h3>
+          <p className="break-words text-sm text-muted-foreground">
             {room.owner}, {room.city} · {room.dims.length} x {room.dims.width} x {room.dims.height} m · measured{" "}
             {room.measuredOn}
           </p>
@@ -271,7 +281,7 @@ function QuickLook({ room, furnishings, onClose }: { room: Room; furnishings: Fu
             : `At ${before.toFixed(2)} s this room is already in the speech range. Record as it is.`
           : `${VERDICT_LABEL[v]} at ${before.toFixed(2)} s. Cheapest plan: ${joinNames(fix.items)} for $${fix.costUsd}, predicted ${after.toFixed(2)} s${fix.reachesTarget ? "" : ", still above the range, so treat the walls too"}.`}
       </p>
-      <p className="mt-2 text-sm text-muted-foreground">{room.notes}</p>
+      <p className="mt-2 break-words text-sm text-muted-foreground">{room.notes}</p>
       <div className="mt-5 flex flex-wrap gap-3">
         <Button asChild>
           <Link href={`/rooms/${room.slug}`}>Open the bench and listen</Link>

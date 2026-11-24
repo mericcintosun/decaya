@@ -106,7 +106,7 @@ export function ClapCapture({
   return (
     <Card className="decaya-ruled p-5">
       <div className="flex flex-wrap items-center gap-4">
-        <Button onClick={() => start()} disabled={busy} size="lg">
+        <Button onClick={() => start()} disabled={busy} size="lg" className="h-auto min-h-11 whitespace-normal py-2">
           <Mic aria-hidden />
           {phase.kind === "done" || phase.kind === "error" ? (live ? "Listen again" : "Load the example again") : label}
         </Button>
@@ -134,12 +134,12 @@ export function ClapCapture({
             <span className="font-semibold">{errorTitle(phase.err)}</span> {phase.err.hint}
           </p>
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" size="sm" onClick={() => start()}>
+            <Button variant="outline" onClick={() => start()}>
               <RotateCcw aria-hidden /> Try again
             </Button>
             {live && SAMPLE_FALLBACK_CODES.has(phase.err.error) && (
               <>
-                <Button variant="outline" size="sm" onClick={() => start(getEngine("fake"))}>
+                <Button variant="outline" onClick={() => start(getEngine("fake"))}>
                   Use the sample measurement
                 </Button>
                 <span className="decaya-stamp text-muted-foreground">Sample data</span>

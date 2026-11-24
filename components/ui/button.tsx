@@ -19,7 +19,8 @@ const buttonVariants = cva(
         link: "border-transparent px-0 text-primary underline decoration-1 underline-offset-4 hover:decoration-2",
       },
       size: {
-        default: "h-9 px-4 py-2",
+        // h-11 is the 44 px touch target; demo-path buttons use default or lg, never sm.
+        default: "h-11 px-4 py-2",
         sm: "h-8 px-3 text-xs",
         lg: "h-11 px-6 text-base",
         icon: "h-9 w-9",

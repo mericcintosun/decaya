@@ -6,7 +6,7 @@ function Select({ className, children, ...props }: React.ComponentProps<"select"
   return (
     <select
       className={cn(
-        "flex h-10 w-full appearance-none rounded-[2px] border border-input border-b-foreground bg-background px-3 py-1 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+        "flex h-11 w-full appearance-none rounded-[2px] border border-input border-b-foreground bg-background px-3 py-1 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
         className
       )}
       {...props}

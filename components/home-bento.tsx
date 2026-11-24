@@ -48,7 +48,7 @@ export function HomeBento({ featured, rooms, furnishings }: { featured: Room; ro
               <Button
                 key={f.id}
                 variant="outline"
-                size="sm"
+                className="h-auto min-h-11 whitespace-normal py-2"
                 aria-pressed={on}
                 onClick={() => setPicked((p) => (on ? p.filter((x) => x !== f.id) : [...p, f.id]))}
               >
@@ -67,7 +67,7 @@ export function HomeBento({ featured, rooms, furnishings }: { featured: Room; ro
               ? `Mid-band decay is ${before.toFixed(2)} s. Speech stays clear under ${SPEECH_TARGET.max} s.`
               : `${before.toFixed(2)} s now, predicted ${after.toFixed(2)} s with ${joinNames(items)}, for $${cost}.`}
           </p>
-          <Button asChild variant="link" size="sm" className="ml-auto">
+          <Button asChild variant="link" className="ml-auto min-h-11">
             <Link href={`/rooms/${featured.slug}`}>Listen to the difference</Link>
           </Button>
         </div>
