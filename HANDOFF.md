@@ -1,5 +1,48 @@
 # HANDOFF: Decaya
 
+## Phase 1 log: walking skeleton and demo path (2026-11-24)
+
+### Goal
+Every step of the 90 s demo has a route that renders from seed data through one adapter seam, and the path is clickable end to end: home bento, a room's bench, add curtain and duvet, "Your room now" then "With thick curtain + duvet on the wall". The measurement code was not rewritten.
+
+### Status
+All four slices written. Not built: the agent cannot run commands, so `npm install`, `npm run build` and `npm run seed` are unverified until the runner runs them.
+
+- Slice 1 done: `DEMO.md` (6 steps, each names an existing file), `CLAUDE.md` (commands, pitfalls, Never list, Vercel guardrails, compaction line as the last line), `.env.example` (`ADAPTER_MODE=fake`, plus a commented `NEXT_PUBLIC_BRAND_FILES=` entry).
+- Slice 2 done: `lib/types.ts` (`Room`, `RoomType`, `RoomUse`, `ApiResponse<T>`, re-exports `BandValues`, `RoomDims`, `Furnishing`, `Verdict`), `lib/data/seed.ts` (`SEED_ROOMS` 10, `SEED_FURNISHINGS` 6, fixed slugs and dates, no `Date.now`/`Math.random`), `lib/data.ts` is now a shim plus helpers, `lib/adapter.ts` (`fakeAdapter`, `realAdapter`, `getAdapter`), `scripts/seed.ts`, `package.json` seed script and `tsx ^4`.
+- Slice 3 done: `app/api/rooms/route.ts`, `app/api/rooms/[slug]/route.ts` (404 `not_found`), `app/api/furnishings/route.ts`; `/`, `/rooms/[slug]` and `/about` read through `getAdapter()`; `HomeBento` and `RoomExplorer` take rooms and furnishings as props; `loading.tsx` in `app/`, `app/rooms/[slug]/`, `app/new/`; explorer empty state is a specimen tag with a "No specimen" stamp; bench shows a "No band data" state when a room lacks five valid band values.
+- Slice 4 done: `components/nav-links.tsx` (client, `usePathname`, `aria-current="page"`, DEEP fill plus underline), layout metadata `title: { default: "Decaya", template: "%s | Decaya" }`, per-page titles (Rooms, room name, Measure a room, Method), new `app/error.tsx` (brand name, `reset()`, link home, no message printed) and `app/not-found.tsx` (brand name, link home), hexes moved into a `@theme static` block with spacing, type scale and radii, `overflow-x-auto` wrappers on the decay canvas, the band bars and the `/about` table, README paragraph and stack majors.
+
+### Decisions
+- `lib/data.ts` stays as a shim (types re-exported, `SEED_ROOMS`/`SEED_FURNISHINGS` re-exported, helpers kept). The old `rooms`, `furnishings` and `getRoom` exports were removed after every importer moved to the adapter or to props.
+- `fixFor` and `averageCut` take an optional furnishing catalog (default: the seed catalog); components pass the adapter's furnishings.
+- `getAdapter()` returns `realAdapter` only for `ADAPTER_MODE=real`; anything else is fake. `realAdapter` delegates to fake, because real rooms are measured and stored in the browser.
+- Seed rooms are labelled as illustrative in the bento ("An example from the fieldbook ... with illustrative values") and on the bench header ("illustrative example values, dated ..."). The home bento result line now says "predicted".
+- The fieldbook list in `components/room-explorer.tsx` is NOT wrapped in `overflow-x-auto`: that wrapper would clip the `layoutId` return animation of signature 1. Rows already collapse to one column below `sm`. A comment at the `<ol>` explains this.
+- Tokens: the eleven IDENTITY hexes now live only in `@theme static` in `app/globals.css` (`--color-ground` and friends). `:root` keeps the short names (`--ink`, `--line`, `--grass`, `--ok-tone`) as aliases because the canvas reads them with `getComputedStyle`. If the build rejects `@theme static`, drop the word `static` (the `:root` aliases reference the variables, which keeps them emitted).
+- Live URL: the deploy step edits the README `> Live demo:` line only; Phase 2 records the URL in this file.
+
+### Failed attempts
+None.
+
+### Files changed
+DEMO.md, CLAUDE.md, .env.example, lib/types.ts, lib/data/seed.ts, lib/data.ts, lib/adapter.ts, scripts/seed.ts, package.json, app/api/rooms/route.ts, app/api/rooms/[slug]/route.ts, app/api/furnishings/route.ts, app/page.tsx, app/rooms/[slug]/page.tsx, app/about/page.tsx, app/loading.tsx, app/rooms/[slug]/loading.tsx, app/new/loading.tsx, components/home-bento.tsx, components/room-explorer.tsx, components/room-bench.tsx, components/band-bars.tsx, components/new-room-form.tsx, components/nav-links.tsx, app/layout.tsx, app/error.tsx, app/not-found.tsx, app/globals.css, README.md, HANDOFF.md.
+
+### Commands run
+None, the agent cannot run commands; the runner builds.
+
+### Open questions
+- `npm run build`, `npm run seed` (twice, byte-identical `fixtures/seed.json`) and the Vercel deploy are unverified (runner and human).
+- `fixtures/seed.json` does not exist until `npm run seed` runs; commit it after the runner generates it.
+- The fieldbook list has no `overflow-x-auto` wrapper (see Decisions, `components/room-explorer.tsx` at the `<ol>`). Spec item partly unmet on purpose to protect signature 1.
+- `@theme static` support in the installed Tailwind 4.1 is assumed, not verified by a build.
+- `motion` `^14.14.0` is the IDENTITY range; the runner's install decides whether it resolves.
+
+### Next best step
+Phase 2: real clap capture hardening behind the adapter seam (onset thresholds, AudioWorklet raw PCM if MediaRecorder smears tails), the CC0 speech clip at `public/audio/dry-speech.wav` (credited in README), and an `npm run proof` script. Record the live URL here.
+
+---
+
 You are picking up a working Next.js 15 scaffold. Read this file, then `IDENTITY.md`, then start on the Mission list. Keep `npm run build` passing after every change.
 
 ## 1. Context
@@ -44,7 +87,7 @@ Navigation: header links Rooms (`/`), Measure a room (`/new`), Method (`/about`)
 ### File map
 
 - `lib/acoustics.ts`: all the science. `predictRt60` (Sabine inverse plus forward), `bestFix` (cheapest subset that lands 0.3 to 0.5 s), `schroederDb` + `t20`, `analyzeRecording` (onset detection, octave filtering in OfflineAudioContext, noise subtraction, clap grading), `recordClaps` (getUserMedia + MediaRecorder + live AnalyserNode level), `synthesizeImpulse` (seeded per-band decaying noise, loudness matched), `loadDryVoice` (dry source adapter).
-- `lib/data.ts`: types, 10 seeded rooms with plausible band RT60s and clap quality, 6 furnishings with band coefficients and cost, `averageCut`, `fixFor`, and the localStorage adapter `loadLocalRooms` / `saveLocalRoom`.
+- `lib/types.ts`: shared types and `ApiResponse<T>`. `lib/data/seed.ts`: 10 seeded rooms and 6 furnishings. `lib/adapter.ts`: `getAdapter()` seam. `lib/data.ts`: shim plus `averageCut`, `fixFor`, `ROOM_TYPES`, `ROOM_USES` and the localStorage helpers `loadLocalRooms` / `saveLocalRoom`.
 - `components/home-bento.tsx`: the six-cell bento (claim + live product, image, CTA, quality stamp, speech window, duvet vs foam finding).
 - `components/room-explorer.tsx`: fieldbook list, URL-synced filters, the shared-layout Quick look.
 - `components/room-bench.tsx`: detail body, `ListenAB`, `DecayCurve` (canvas).
@@ -60,7 +103,8 @@ Real: clap capture, onset detection, octave filter bank, Schroeder integration, 
 Mocked or stand-in:
 - `loadDryVoice` in `lib/acoustics.ts`: uses a formant-synth phrase until a CC0 anechoic speech file is placed at `public/audio/dry-speech.wav` (then it is picked up automatically; the UI names the source).
 - `loadLocalRooms` / `saveLocalRoom` in `lib/data.ts`: localStorage only, so measured rooms live on one device.
-- Seed rooms in `lib/data.ts` are plausible illustrative data, not measurements. Replace or add real measurements from the team's own rooms before submitting and say so in the README.
+- `realAdapter` in `lib/adapter.ts` delegates to the fake adapter.
+- Seed rooms in `lib/data/seed.ts` are plausible illustrative data, not measurements. Replace or add real measurements from the team's own rooms before submitting and say so in the README.
 
 ### Interaction kit (K1 motion)
 
