@@ -23,6 +23,8 @@ export function BandBars({
 }) {
   return (
     <div className={cn("space-y-2", className)}>
+      <div className="overflow-x-auto">
+      <div className="min-w-[18rem] space-y-2">
       {BAND_LABELS.map((label, i) => {
         const m = measured[i];
         const p = predicted?.[i];
@@ -59,6 +61,8 @@ export function BandBars({
           </div>
         );
       })}
+      </div>
+      </div>
       <p className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <span aria-hidden className="inline-block h-2 w-4 bg-foreground" /> measured

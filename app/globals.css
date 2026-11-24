@@ -1,19 +1,58 @@
 @import "tailwindcss";
 
-/* Decaya design tokens. Every hex below comes from IDENTITY.md (D6 fieldbook).
-   Components never carry hex: they use these variables through Tailwind. */
+/* Decaya design tokens. Every hex in this file lives in the @theme block below and comes
+   from IDENTITY.md (D6 fieldbook). Components never carry hex: they use token classes.
+   The canvas in components/room-bench.tsx reads --ink, --line, --grass and --ok-tone
+   through getComputedStyle. */
+@theme static {
+  /* Palette (exact IDENTITY.md hexes) */
+  --color-ground: #f5f2e6;
+  --color-surface: #ebe7d4;
+  --color-deep: #dfe2cc;
+  --color-line: #cfc9b4;
+  --color-ink: #26311f;
+  --color-grass: #3d7a3d;
+  --color-on-grass: #f5f2e6;
+  --color-ochre: #c9932a;
+  --color-ok-tone: #2e7d4f;
+  --color-warn-tone: #c9932a;
+  --color-bad-tone: #9c3b2a;
+
+  /* Spacing base (Tailwind multiplies this for p-4, gap-6 and friends) */
+  --spacing: 0.25rem;
+
+  /* Type scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+  --text-5xl: 3rem;
+
+  /* RADIUS sharp: every named radius collapses to 2px. */
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.125rem;
+  --radius-md: 0.125rem;
+  --radius-lg: 0.125rem;
+  --radius-xl: 0.125rem;
+  --radius-2xl: 0.125rem;
+}
+
 :root {
-  --ground: #f5f2e6;
-  --surface: #ebe7d4;
-  --deep: #dfe2cc;
-  --line: #cfc9b4;
-  --ink: #26311f;
-  --grass: #3d7a3d;
-  --on-grass: #f5f2e6;
-  --ochre: #c9932a;
-  --ok-tone: #2e7d4f;
-  --warn-tone: #c9932a;
-  --bad-tone: #9c3b2a;
+  --ground: var(--color-ground);
+  --surface: var(--color-surface);
+  --deep: var(--color-deep);
+  --line: var(--color-line);
+  --ink: var(--color-ink);
+  --grass: var(--color-grass);
+  --on-grass: var(--color-on-grass);
+  --ochre: var(--color-ochre);
+  --ok-tone: var(--color-ok-tone);
+  --warn-tone: var(--color-warn-tone);
+  --bad-tone: var(--color-bad-tone);
 
   --background: var(--ground);
   --foreground: var(--ink);
@@ -37,7 +76,7 @@
   --ok: var(--ok-tone);
   --warn: var(--warn-tone);
   --bad: var(--bad-tone);
-  --radius: 0.125rem;
+  --radius: var(--radius-sm);
 
   --font-display-stack: var(--font-fraunces), "Iowan Old Style", Georgia, "Times New Roman", serif;
   --font-body-stack: var(--font-source-sans), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
@@ -66,15 +105,6 @@
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-bad: var(--bad);
-  --color-surface: var(--surface);
-  --color-deep: var(--deep);
-  /* RADIUS sharp: every named radius collapses to 2px. */
-  --radius-xs: var(--radius);
-  --radius-sm: var(--radius);
-  --radius-md: var(--radius);
-  --radius-lg: var(--radius);
-  --radius-xl: var(--radius);
-  --radius-2xl: var(--radius);
   --font-display: var(--font-display-stack);
   --font-sans: var(--font-body-stack);
 }

@@ -4,6 +4,8 @@ Clap once in your room. Decaya measures how long the echo rings, works out which
 
 > Live demo: https://decaya.vercel.app
 
+Decaya is a browser tool for students who record in rooms that ring. You clap three times, Decaya measures the decay per octave band, predicts what a curtain, a duvet or a rug would change with Sabine's equation, and plays the same sentence through your room as it is and as it would be. The fieldbook on the home page holds ten illustrative example rooms (not measurements we took) next to any room you measure yourself, which stays in your own browser.
+
 ## The problem
 
 Students record a lot from their rooms: podcasts, cover songs, voice assignments, online class presentations, YouTube. When it sounds bad, the microphone gets the blame and a new one gets ordered. Usually the mic is fine. The room is the problem. A dorm with a linoleum floor and painted cinder block keeps every word ringing for close to a second, and speech only sounds clear when that decay is under half a second.
@@ -17,7 +19,7 @@ The tools that measure this are either heavy (Room EQ Wizard wants a measurement
 3. **Try furniture on it.** Enter the room size. Decaya solves Sabine's equation (RT60 = 0.161 V / A) backwards to find the absorption already in the room, then adds a thick curtain, a duvet on the wall, a rug, a bookshelf, a bean bag or a $79 foam pack and predicts the new decay per band.
 4. **Listen before you buy.** Two impulse responses are synthesized from the measured and predicted decay times and run through a ConvolverNode on the same dry phrase. Tap "Your room now", then "With thick curtain + duvet on the wall". Same loudness, same noise, only the decay changes.
 
-Everything runs in the visitor's browser. No server, no account, no upload, no API key.
+All measurement and audio work runs in the visitor's browser. The server only serves the seeded fieldbook; no account, no upload, no API key.
 
 What the model says, run over the too-live rooms in the seeded fieldbook: a free duvet hung off the wall cuts mid-band echo roughly three times more than a 12-pack of foam squares. Foam absorbs better per square meter, but twelve squares only cover about one square meter. Area wins.
 
@@ -33,8 +35,9 @@ This hackathon has no sponsor technology. The core is the Web Audio API:
 
 ## Tech stack
 
-- Next.js 15 (App Router), TypeScript strict, Tailwind CSS v4, shadcn-style primitives
-- Motion (`motion/react`) for the shared-layout room card expansion and the animated band bars
+- Next.js 15 (App Router), React 19, TypeScript strict, Tailwind CSS 4, shadcn-style primitives
+- Motion 14 (`motion/react`) for the shared-layout room card expansion and the animated band bars
+- Seed data served through one adapter (`lib/adapter.ts`, `ADAPTER_MODE=fake`) and small JSON routes under `/api`
 - Web Audio API and Canvas 2D, no audio libraries
 - localStorage for rooms you measure (no backend)
 - Vercel
