@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" width="960" height="640">
+  <defs>
+    <pattern id="rule" width="960" height="32" patternUnits="userSpaceOnUse">
+      <path d="M0 31.5 H960" stroke="#cfc9b4" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="960" height="640" fill="#f5f2e6"/>
+  <rect width="960" height="640" fill="url(#rule)"/>
+  <path d="M72 0 V640" stroke="#9c3b2a" stroke-width="1" opacity="0.5"/>
+  <path d="M120 470 H880" stroke="#26311f" stroke-width="2"/>
+  <path d="M120 90 V470 M880 90 V470" stroke="#26311f" stroke-width="2"/>
+  <rect x="150" y="380" width="300" height="70" fill="#ebe7d4" stroke="#26311f" stroke-width="2"/>
+  <rect x="150" y="350" width="80" height="30" fill="#dfe2cc" stroke="#26311f" stroke-width="2"/>
+  <path d="M150 450 V470 M450 450 V470" stroke="#26311f" stroke-width="2"/>
+  <rect x="640" y="360" width="200" height="12" fill="#ebe7d4" stroke="#26311f" stroke-width="2"/>
+  <path d="M655 372 V470 M825 372 V470" stroke="#26311f" stroke-width="2"/>
+  <rect x="716" y="346" width="40" height="14" fill="#26311f"/>
+  <circle cx="320" cy="250" r="26" fill="#f5f2e6" stroke="#26311f" stroke-width="2"/>
+  <path d="M320 276 V350 M320 300 L290 268 M320 300 L350 268" stroke="#26311f" stroke-width="2.5" fill="none"/>
+  <path d="M284 262 L300 250 L304 266 Z M356 262 L340 250 L336 266 Z" fill="#c9932a" stroke="#26311f" stroke-width="1.5"/>
+  <g fill="none" stroke="#3d7a3d" stroke-width="3">
+    <path d="M360 200 A90 90 0 0 1 360 320" opacity="0.9"/>
+    <path d="M400 160 A140 140 0 0 1 400 360" opacity="0.7"/>
+    <path d="M450 120 A200 200 0 0 1 450 400" opacity="0.5"/>
+    <path d="M510 90 A260 260 0 0 1 510 430" opacity="0.35"/>
+    <path d="M580 90 A320 320 0 0 1 580 440" opacity="0.2"/>
+  </g>
+  <g transform="translate(640 120) rotate(-4)">
+    <path d="M0 0 H200 L220 20 V96 H0 Z" fill="#f5f2e6" stroke="#26311f" stroke-width="2"/>
+    <circle cx="200" cy="22" r="6" fill="#ebe7d4" stroke="#26311f" stroke-width="1.5"/>
+    <text x="16" y="34" font-family="Georgia, serif" font-size="15" fill="#26311f" letter-spacing="2">SPECIMEN No. 01</text>
+    <text x="16" y="74" font-family="Georgia, serif" font-size="30" fill="#9c3b2a">0.93 s</text>
+  </g>
+</svg>

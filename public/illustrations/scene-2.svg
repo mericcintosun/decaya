@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="960" height="540">
+  <defs>
+    <pattern id="rule2" width="960" height="30" patternUnits="userSpaceOnUse">
+      <path d="M0 29.5 H960" stroke="#cfc9b4" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="960" height="540" fill="#f5f2e6"/>
+  <rect width="960" height="540" fill="url(#rule2)"/>
+  <rect x="40" y="60" width="420" height="420" fill="#ebe7d4" stroke="#26311f" stroke-width="2"/>
+  <rect x="500" y="60" width="420" height="420" fill="#ebe7d4" stroke="#26311f" stroke-width="2"/>
+  <path d="M60 270 H440 M520 270 H900" stroke="#cfc9b4" stroke-width="1.5"/>
+  <path d="M70 270 L80 200 L90 340 L100 180 L110 360 L120 210 L130 330 L140 190 L150 350 L160 215 L170 325 L180 225 L190 315 L200 232 L210 308 L220 238 L230 302 L240 244 L250 296 L260 248 L270 292 L280 252 L290 288 L300 255 L310 285 L320 258 L330 282 L340 260 L350 280 L360 262 L370 278 L380 264 L390 276 L400 266 L410 274 L420 267 L430 272" fill="none" stroke="#26311f" stroke-width="2"/>
+  <path d="M530 270 L540 200 L550 340 L560 180 L570 360 L580 205 L590 335 L600 240 L610 300 L620 258 L630 282 L640 266 L650 274 L660 270 L700 270 L710 210 L720 330 L730 195 L740 345 L750 236 L760 304 L770 262 L780 278 L790 270 L890 270" fill="none" stroke="#3d7a3d" stroke-width="2.5"/>
+  <g transform="translate(70 90) rotate(-3)">
+    <rect width="150" height="34" fill="none" stroke="#9c3b2a" stroke-width="3"/>
+    <text x="14" y="23" font-family="Georgia, serif" font-size="15" fill="#9c3b2a" letter-spacing="2">NOW 0.93 s</text>
+  </g>
+  <g transform="translate(530 90) rotate(-3)">
+    <rect width="220" height="34" fill="none" stroke="#3d7a3d" stroke-width="3"/>
+    <text x="14" y="23" font-family="Georgia, serif" font-size="15" fill="#3d7a3d" letter-spacing="2">CURTAIN + DUVET 0.48 s</text>
+  </g>
+  <path d="M60 440 H440" stroke="#c9932a" stroke-width="6" opacity="0.6"/>
+  <path d="M520 440 H690" stroke="#c9932a" stroke-width="6" opacity="0.6"/>
+</svg>

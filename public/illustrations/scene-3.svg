@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 720" width="960" height="720">
+  <defs>
+    <pattern id="rule3" width="960" height="32" patternUnits="userSpaceOnUse">
+      <path d="M0 31.5 H960" stroke="#cfc9b4" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="960" height="720" fill="#f5f2e6"/>
+  <rect width="960" height="720" fill="url(#rule3)"/>
+  <rect x="60" y="60" width="380" height="300" fill="#ebe7d4" stroke="#26311f" stroke-width="2"/>
+  <path d="M100 320 H410 M100 100 V320" stroke="#26311f" stroke-width="2"/>
+  <rect x="120" y="270" width="36" height="50" fill="#3d7a3d"/>
+  <rect x="180" y="220" width="36" height="100" fill="#3d7a3d"/>
+  <rect x="240" y="170" width="36" height="150" fill="#3d7a3d"/>
+  <rect x="300" y="160" width="36" height="160" fill="#3d7a3d"/>
+  <rect x="360" y="175" width="36" height="145" fill="#3d7a3d"/>
+  <rect x="100" y="180" width="310" height="60" fill="#2e7d4f" opacity="0.12"/>
+  <circle cx="420" cy="80" r="8" fill="#f5f2e6" stroke="#26311f" stroke-width="2"/>
+  <g fill="none" stroke="#26311f" stroke-width="2">
+    <path d="M520 80 H880"/>
+    <path d="M540 80 C530 200 560 300 540 420 C530 520 560 600 545 660"/>
+    <path d="M600 80 C590 200 620 300 600 420 C590 520 620 600 605 660"/>
+    <path d="M660 80 C650 200 680 300 660 420 C650 520 680 600 665 660"/>
+  </g>
+  <rect x="720" y="420" width="180" height="240" fill="#ebe7d4" stroke="#26311f" stroke-width="2"/>
+  <path d="M720 500 H900 M720 580 H900" stroke="#26311f" stroke-width="2"/>
+  <g fill="#c9932a" stroke="#26311f" stroke-width="1.5">
+    <rect x="732" y="440" width="14" height="60"/><rect x="750" y="450" width="12" height="50"/><rect x="766" y="436" width="18" height="64"/><rect x="790" y="446" width="14" height="54"/>
+    <rect x="732" y="522" width="16" height="58"/><rect x="752" y="530" width="12" height="50"/><rect x="770" y="518" width="20" height="62"/>
+  </g>
+  <path d="M120 470 Q200 440 280 470 Q360 500 440 470 L440 560 Q360 590 280 560 Q200 530 120 560 Z" fill="#dfe2cc" stroke="#26311f" stroke-width="2"/>
+  <path d="M120 515 Q200 485 280 515 Q360 545 440 515" fill="none" stroke="#26311f" stroke-width="1.5"/>
+  <g transform="translate(140 600) rotate(-3)">
+    <rect width="190" height="32" fill="none" stroke="#3d7a3d" stroke-width="3"/>
+    <text x="12" y="22" font-family="Georgia, serif" font-size="14" fill="#3d7a3d" letter-spacing="2">DUVET 4.0 m² FREE</text>
+  </g>
+  <g transform="translate(600 360) rotate(3)">
+    <rect width="160" height="32" fill="none" stroke="#26311f" stroke-width="3"/>
+    <text x="12" y="22" font-family="Georgia, serif" font-size="14" fill="#26311f" letter-spacing="2">CURTAIN $34</text>
+  </g>
+</svg>
