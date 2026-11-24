@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Mic, RotateCcw } from "lucide-react";
+import { AnimatePresence, MotionConfig, motion, type Variants } from "motion/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -104,59 +105,120 @@ export function ClapCapture({
   const busy = phase.kind === "recording" || phase.kind === "analyzing";
 
   return (
-    <Card className="decaya-ruled p-5">
-      <div className="flex flex-wrap items-center gap-4">
-        <Button onClick={() => start()} disabled={busy} size="lg" className="h-auto min-h-11 whitespace-normal py-2">
-          <Mic aria-hidden />
-          {phase.kind === "done" || phase.kind === "error" ? (live ? "Listen again" : "Load the example again") : label}
-        </Button>
-        <p className="text-sm" aria-live="polite">
-          {phase.kind === "idle" &&
-            (live
-              ? "Stand in the middle of the room. Clap sharply three times, about two seconds apart."
-              : "Sample mode: the button loads a stored example measurement. The microphone is not used.")}
-          {phase.kind === "recording" && `Listening: clap now. ${phase.secondsLeft} s left.`}
-          {phase.kind === "analyzing" &&
-            (phase.sample ? "Loading the stored example measurement..." : "Splitting into five octave bands and fitting each decay...")}
-          {phase.kind === "done" && phase.note}
-        </p>
-      </div>
-
-      {phase.kind === "recording" && (
-        <div className="mt-4 h-3 border border-foreground bg-background" aria-hidden>
-          <div className={level > 0.98 ? "h-full bg-bad" : "h-full bg-primary"} style={{ width: `${Math.min(100, level * 100)}%` }} />
-        </div>
-      )}
-
-      {phase.kind === "error" && (
-        <div className="mt-4 space-y-3 border border-bad bg-background p-4" role="alert">
-          <p className="text-sm text-bad">
-            <span className="font-semibold">{errorTitle(phase.err)}</span> {phase.err.hint}
+    <MotionConfig reducedMotion="user">
+      <Card className="p-5">
+        <div className="flex flex-wrap items-center gap-4">
+          <Button onClick={() => start()} disabled={busy} size="lg" className="h-auto min-h-11 whitespace-normal py-2">
+            <Mic aria-hidden />
+            {phase.kind === "done" || phase.kind === "error" ? (live ? "Listen again" : "Load the example again") : label}
+          </Button>
+          {/* The live region stays mounted; only its line swaps, so screen readers hear every stage. */}
+          <p className="min-w-0 flex-1 text-sm" aria-live="polite">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={phase.kind}
+                className="block"
+                variants={STAGE}
+                initial="enter"
+                animate="show"
+                exit="leave"
+              >
+                {phase.kind === "idle" &&
+                  (live
+                    ? "Stand in the middle of the room. Clap sharply three times, about two seconds apart."
+                    : "Sample mode: the button loads a stored example measurement. The microphone is not used.")}
+                {phase.kind === "recording" && `Listening: clap now. ${phase.secondsLeft} s left.`}
+                {phase.kind === "analyzing" &&
+                  (phase.sample ? "Loading the stored example measurement..." : "Splitting into five octave bands and fitting each decay...")}
+                {phase.kind === "done" && phase.note}
+                {phase.kind === "error" && "The measurement stopped."}
+              </motion.span>
+            </AnimatePresence>
           </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" onClick={() => start()}>
-              <RotateCcw aria-hidden /> Try again
-            </Button>
-            {live && SAMPLE_FALLBACK_CODES.has(phase.err.error) && (
-              <>
-                <Button variant="outline" onClick={() => start(getEngine("fake"))}>
-                  Use the sample measurement
-                </Button>
-                <span className="decaya-stamp text-muted-foreground">Sample data</span>
-              </>
-            )}
-          </div>
         </div>
-      )}
 
-      {phase.kind === "done" && <QualityReport m={phase.m} />}
-    </Card>
+        {/* Signature 3: idle, listening, analyzing, result and error swap with exit animations. */}
+        <AnimatePresence mode="wait" initial={false}>
+          {phase.kind === "recording" && (
+            <motion.div key="recording" variants={STAGE} initial="enter" animate="show" exit="leave">
+              <div className="mt-4 h-3 border border-foreground bg-background" aria-hidden>
+                <div className={level > 0.98 ? "h-full bg-bad" : "h-full bg-primary"} style={{ width: `${Math.min(100, level * 100)}%` }} />
+              </div>
+            </motion.div>
+          )}
+
+          {phase.kind === "analyzing" && (
+            <motion.div key="analyzing" variants={STAGE} initial="enter" animate="show" exit="leave">
+              <div className="mt-4 flex flex-wrap gap-2" aria-hidden>
+                {BAND_LABELS.map((b) => (
+                  <span key={b} className="border border-border bg-background px-2 py-1 text-xs text-muted-foreground">
+                    {b}
+                  </span>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {phase.kind === "error" && (
+            <motion.div
+              key="error"
+              variants={STAGE}
+              initial="enter"
+              animate="show"
+              exit="leave"
+              className="mt-4 space-y-3 border border-bad bg-background p-4"
+              role="alert"
+            >
+              <p className="text-sm text-bad">
+                <span className="font-semibold">{errorTitle(phase.err)}</span> {phase.err.hint}
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button variant="outline" onClick={() => start()}>
+                  <RotateCcw aria-hidden /> Try again
+                </Button>
+                {live && SAMPLE_FALLBACK_CODES.has(phase.err.error) && (
+                  <>
+                    <Button variant="outline" onClick={() => start(getEngine("fake"))}>
+                      Use the sample measurement
+                    </Button>
+                    <span className="decaya-stamp text-muted-foreground">Sample data</span>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {phase.kind === "done" && (
+            <motion.div key="done" variants={STAGE} initial="enter" animate="show" exit="leave">
+              <QualityReport m={phase.m} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Card>
+    </MotionConfig>
   );
 }
 
+/** Stage swap: the M6 drop (from 14 px above with a small tilt) in, a short fall out. */
+const STAGE: Variants = {
+  enter: { opacity: 0, y: -14, rotate: -1.5 },
+  show: { opacity: 1, y: 0, rotate: 0, transition: { duration: 0.52, ease: [0.34, 1.56, 0.64, 1] as const } },
+  leave: { opacity: 0, y: 8, transition: { duration: 0.16 } },
+};
+
+/** Per-clap rows stagger in after the report lands. */
+const LIST: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.09, delayChildren: 0.15 } },
+};
+const ROW: Variants = {
+  hidden: { opacity: 0, x: -8 },
+  show: { opacity: 1, x: 0 },
+};
+
 function QualityReport({ m }: { m: Measurement }) {
   return (
-    <div className="mt-4 space-y-3 bg-background p-4">
+    <div className="mt-4 space-y-3 border border-border bg-background p-4">
       <div className="flex flex-wrap items-center gap-3">
         <Badge variant="stamp" className={m.validCount >= 2 ? "text-ok" : "text-bad"}>
           {m.validCount} of {m.claps.length} claps valid
@@ -173,16 +235,16 @@ function QualityReport({ m }: { m: Measurement }) {
         </p>
       )}
       {m.capturePath && <p className="text-xs text-muted-foreground">Capture: {CAPTURE_LABEL[m.capturePath]}.</p>}
-      <ul className="space-y-1 text-sm">
+      <motion.ul className="space-y-1 text-sm" variants={LIST} initial="hidden" animate="show">
         {m.claps.map((c) => (
-          <li key={c.index}>
+          <motion.li key={c.index} variants={ROW} className="border-b border-border py-1 last:border-0">
             Clap {c.index}: {c.valid ? "kept" : c.reason}{" "}
             <span className="text-muted-foreground">
               ({c.bands.map((b, i) => `${BAND_LABELS[i]} ${b === null ? "n/a" : `${b.toFixed(2)} s`}`).join(", ")})
             </span>
-          </li>
+          </motion.li>
         ))}
-      </ul>
+      </motion.ul>
     </div>
   );
 }

@@ -14,7 +14,7 @@
 
 Every step names the route file that renders it. Seeded rooms are illustrative examples, not measurements the team took; every number after an item is added is labelled a prediction.
 
-1. **Open `/`** (`app/page.tsx`, `components/home-bento.tsx`). The bento's largest cell is the live furnishing preview on a seeded dorm room: tap "Thick curtain" and "Duvet on the wall" and the predicted band bars drop toward the green speech strip. (0 to 10 s)
+1. **Open `/`** (`app/page.tsx`, `components/home-bento.tsx`). The bento's largest cell is the live furnishing preview on a seeded dorm room: tap "Thick curtain" and "Duvet on the wall" and the predicted band bars drop toward the green speech strip. Optional: drag the width handle under the bars (arrow keys or the "Width in meters" box do the same) and the predicted bars rise as the room widens. (0 to 10 s)
 2. **Open `/new`** (`app/new/page.tsx`, `components/new-room-form.tsx`, `components/clap-capture.tsx`). Name the room, clap three times, and the stamp reads "3 of 3 claps valid". Save to the fieldbook. (10 to 25 s)
 3. **See the number and the curve on `/rooms/[slug]`** (`app/rooms/[slug]/page.tsx`, `components/room-bench.tsx`). The mid-band decay (around 0.9 s in a dorm) and the decay curve falling past the green wedge. Line: "It is not the mic, it is the room." (25 to 45 s)
 4. **Enter the room size and add thick curtain and duvet** (same route, the simulator card "What would you add?" in `components/room-bench.tsx`). Room size 3 x 4 x 2.6 m. Leave only "Thick curtain" and "Duvet on the wall" pressed. The predicted bars drop into the strip; toggle "Foam panels" to show it does less. (45 to 70 s)
